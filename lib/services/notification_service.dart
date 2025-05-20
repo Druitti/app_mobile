@@ -1,110 +1,118 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dartz/dartz.dart';
 import 'package:app_mobile/common/utils/failures.dart';
 
 class NotificationService {
-  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
+  static final NotificationService _instance = NotificationService._internal();
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
-  Future<Either<Failure, bool>> init() async {
-    // Solicitar permissão para notificações (Android 13+)
-    final PermissionStatus status = await Permission.notification.request();
-    if (!status.isGranted) {
-      return Left(PermissionFailure("Permissão de notificação negada."));
-    }
+  factory NotificationService() => _instance;
 
-    // Configurações de inicialização para Android
+  NotificationService._internal();
+
+  Future<void> initialize() async {
+    // Configurar notificações locais
     const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings(
-            '@mipmap/ic_launcher'); // Use o ícone padrão do app
-
-    // Configurações de inicialização para iOS (solicita permissões)
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    
     const DarwinInitializationSettings initializationSettingsIOS =
         DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
-      // onDidReceiveLocalNotification: onDidReceiveLocalNotification, // Callback para iOS < 10
     );
 
-    const InitializationSettings initializationSettings =
-        InitializationSettings(
+    const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
 
-    try {
-      await _flutterLocalNotificationsPlugin.initialize(
-        initializationSettings,
-        // onDidReceiveNotificationResponse: onDidReceiveNotificationResponse, // Callback para quando a notificação é tocada
-      );
-      return const Right(true);
-    } catch (e) {
-      print("Erro ao inicializar notificações: $e");
-      return Left(UnknownFailure(
-          "Falha ao inicializar serviço de notificação: ${e.toString()}"));
-    }
+    await _localNotifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: _onNotificationTap,
+    );
+
+    // Configurar Firebase Messaging
+    await _firebaseMessaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Configurar handlers para diferentes estados do app
+    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   }
 
-  // Função para exibir uma notificação simples
-  Future<Either<Failure, Unit>> showNotification(
-      int id, String title, String body) async {
-    // Detalhes da notificação para Android
-    const AndroidNotificationDetails androidNotificationDetails =
+  Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    await _showLocalNotification(
+      title: message.notification?.title ?? 'Nova notificação',
+      body: message.notification?.body ?? '',
+      payload: message.data.toString(),
+    );
+  }
+
+  void _handleBackgroundMessage(RemoteMessage message) {
+    // Implementar lógica para quando o app é aberto através da notificação
+    print('Mensagem recebida em background: ${message.messageId}');
+  }
+
+  Future<void> _showLocalNotification({
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'delivery_channel_id', // ID do canal
-      'Atualizações de Entrega', // Nome do canal
-      channelDescription: 'Canal para notificações sobre o status da entrega',
+      'entregas_channel',
+      'Entregas',
+      channelDescription: 'Canal de notificações de entregas',
       importance: Importance.max,
       priority: Priority.high,
-      ticker: 'ticker',
     );
 
-    // Detalhes da notificação para iOS
-    const DarwinNotificationDetails darwinNotificationDetails =
-        DarwinNotificationDetails(
-            // sound: 'default',
-            // badgeNumber: 1,
-            );
+    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+        DarwinNotificationDetails();
 
-    const NotificationDetails notificationDetails = NotificationDetails(
-      android: androidNotificationDetails,
-      iOS: darwinNotificationDetails,
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+      iOS: iOSPlatformChannelSpecifics,
     );
 
-    try {
-      await _flutterLocalNotificationsPlugin.show(
-        id, // ID único da notificação
-        title,
-        body,
-        notificationDetails,
-        // payload: 'item x', // Dados opcionais para passar quando a notificação é tocada
-      );
-      return const Right(unit);
-    } catch (e) {
-      print("Erro ao exibir notificação: $e");
-      return Left(
-          UnknownFailure("Falha ao exibir notificação: ${e.toString()}"));
-    }
+    await _localNotifications.show(
+      0,
+      title,
+      body,
+      platformChannelSpecifics,
+      payload: payload,
+    );
   }
 
-  // --- Callbacks Opcionais ---
+  void _onNotificationTap(NotificationResponse response) {
+    // Implementar lógica para quando o usuário toca na notificação
+    print('Notificação tocada: ${response.payload}');
+  }
 
-  // Callback para quando uma notificação é recebida enquanto o app está em primeiro plano (iOS < 10)
-  // static void onDidReceiveLocalNotification(
-  //     int id, String? title, String? body, String? payload) async {
-  //   // Exibir um diálogo, ou fazer outra coisa?
-  //   print('Notificação recebida em foreground (iOS < 10): $title');
-  // }
+  Future<String?> getToken() async {
+    return await _firebaseMessaging.getToken();
+  }
 
-  // Callback para quando o usuário toca na notificação
-  // static void onDidReceiveNotificationResponse(NotificationResponse notificationResponse) async {
-  //   final String? payload = notificationResponse.payload;
-  //   if (notificationResponse.payload != null) {
-  //     print('Payload da notificação: $payload');
-  //   }
-  //   // Navegar para uma tela específica, por exemplo
-  //   // await Navigator.push(context, MaterialPageRoute<void>(builder: (context) => SecondScreen(payload)));
-  // }
+  Future<void> subscribeToTopic(String topic) async {
+    await _firebaseMessaging.subscribeToTopic(topic);
+  }
+
+  Future<void> unsubscribeFromTopic(String topic) async {
+    await _firebaseMessaging.unsubscribeFromTopic(topic);
+  }
+}
+
+// Handler para mensagens em background
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Implementar lógica para mensagens em background
+  print('Mensagem em background: ${message.messageId}');
 }

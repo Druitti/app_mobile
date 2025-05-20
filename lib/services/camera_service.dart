@@ -1,60 +1,83 @@
+import 'dart:io';
+import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:app_mobile/common/utils/constants.dart';
 import 'package:app_mobile/common/utils/failures.dart';
 import 'package:dartz/dartz.dart';
-import 'package:permission_handler/permission_handler.dart'; // Adicione permission_handler: ^11.0.0 no pubspec.yaml
 
 class CameraService {
-  final ImagePicker _picker = ImagePicker();
+  static final CameraService _instance = CameraService._internal();
+  CameraController? _controller;
+  List<CameraDescription>? _cameras;
 
-  Future<Either<Failure, XFile>> takePicture() async {
-    // 1. Verificar permissão da câmera
-    var status = await Permission.camera.status;
-    if (status.isDenied) {
-      status = await Permission.camera.request();
-      if (status.isDenied) {
-        return Left(PermissionFailure(cameraPermissionDenied));
-      }
-    }
-    if (status.isPermanentlyDenied) {
-       return Left(PermissionFailure(
-          "Permissão da câmera negada permanentemente. Abra as configurações do app."));
-    }
+  factory CameraService() => _instance;
 
-    // 2. Tentar tirar a foto
-    try {
-      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
-      if (photo != null) {
-        return Right(photo);
-      } else {
-        // Usuário cancelou a captura
-        return Left(UnknownFailure("Captura de foto cancelada pelo usuário."));
-      }
-    } catch (e) {
-      print("Erro ao tirar foto: $e");
-      return Left(UnknownFailure("Erro ao acessar a câmera ou tirar foto: ${e.toString()}"));
+  CameraService._internal();
+
+  Future<void> initialize() async {
+    _cameras = await availableCameras();
+    if (_cameras != null && _cameras!.isNotEmpty) {
+      _controller = CameraController(
+        _cameras![0],
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      await _controller!.initialize();
     }
   }
 
-  // Opcional: Função para pegar imagem da galeria
-  Future<Either<Failure, XFile>> pickImageFromGallery() async {
-     // 1. Verificar permissão de acesso à galeria (varia por plataforma)
-     // Em Android >= 13, pode não precisar de permissão explícita para o picker
-     // Em iOS, a permissão Photos é necessária (geralmente adicionada no Info.plist)
-     // Permission_handler pode ser usado para verificar/solicitar se necessário.
+  Future<bool> requestCameraPermission() async {
+    final status = await Permission.camera.request();
+    return status.isGranted;
+  }
+
+  Future<bool> checkCameraPermission() async {
+    final status = await Permission.camera.status;
+    return status.isGranted;
+  }
+
+  Future<String?> takePicture() async {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return null;
+    }
 
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        return Right(image);
-      } else {
-        // Usuário cancelou a seleção
-        return Left(UnknownFailure("Seleção de imagem cancelada pelo usuário."));
-      }
+      final XFile photo = await _controller!.takePicture();
+      return photo.path;
     } catch (e) {
-      print("Erro ao selecionar imagem da galeria: $e");
-      return Left(UnknownFailure("Erro ao acessar a galeria ou selecionar imagem: ${e.toString()}"));
+      return null;
     }
+  }
+
+  Future<String?> pickImageFromGallery() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+      return image?.path;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<String?> saveImageToLocal(File imageFile) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final String fileName = 'entrega_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String filePath = '${directory.path}/$fileName';
+      
+      await imageFile.copy(filePath);
+      return filePath;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  CameraController? get controller => _controller;
+
+  void dispose() {
+    _controller?.dispose();
   }
 }
 
