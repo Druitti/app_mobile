@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:app_mobile/common/widgets/loading_indicator.dart'; // Exemplo de uso de widget comum
-import 'package:app_mobile/presentation/client/bloc/client_bloc.dart'; // Exemplo de import do BLoC
-// Importe outros BLoCs, repositórios ou serviços necessários
+import 'package:app_mobile/common/widgets/loading_indicator.dart';
+import 'package:app_mobile/presentation/client/bloc/client_bloc.dart';
+import 'package:app_mobile/common/model/order.dart'; // Importar modelo Order para exemplo
 
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({Key? key}) : super(key: key);
@@ -11,13 +11,28 @@ class ClientHomeScreen extends StatefulWidget {
 }
 
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
-  // Instancie seu BLoC aqui (geralmente via Provider ou outra injeção de dependência)
-  // final ClientBloc _clientBloc = ClientBloc(); // Exemplo
+  // Exemplo de dados para demonstração
+  final List<Order> _activeOrders = [
+    Order(
+      id: 'order_123',
+      description: 'Pacote Eletrônicos',
+      status: 'Em Trânsito',
+      estimatedDelivery: DateTime.now().add(const Duration(hours: 2)),
+      driverName: 'João Silva',
+    ),
+    Order(
+      id: 'order_456',
+      description: 'Documento Urgente',
+      status: 'Preparando',
+      estimatedDelivery: DateTime.now().add(const Duration(hours: 1)),
+      driverName: 'Maria Oliveira',
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
-    // Dispare eventos iniciais no BLoC, se necessário
+    // Aqui você inicializaria seu BLoC
     // _clientBloc.add(LoadActiveOrdersEvent());
   }
 
@@ -26,94 +41,146 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Minhas Encomendas'),
-        // Adicione ações, como ir para o histórico ou configurações
+       automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
+            
             onPressed: () {
-              // Navegar para a tela de histórico
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) =>
-                          const ClientHistoryScreen())); // Certifique-se que ClientHistoryScreen existe
+              // Navegar para a tela de histórico usando rota nomeada
+              Navigator.pushNamed(context, '/client_history');
             },
+            tooltip: 'Histórico de Pedidos',
           ),
-          // Adicionar botão para configurações, etc.
-        ],
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'Tela Principal do Cliente (WIP)',
+          PopupMenuButton<String>(
+          tooltip: 'Menu',
+          onSelected: (value) {
+            if (value == 'settings') {
+              // @TO-DO Navegação para configurações (a ser implementada)
+              // Navigator.pushNamed(context, '/client_settings');
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Configurações (a implementar)')),
+              );
+            } else if (value == 'help') {
+              // Mostrar ajuda
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Ajuda (a implementar)')),
+              );
+            } else if (value == 'logout') {
+              // Voltar para a tela de seleção
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Sair'),
+                  content: const Text('Deseja sair do modo Cliente?'),
+                  actions: [
+                    TextButton(
+                      child: const Text('Cancelar'),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    TextButton(
+                      child: const Text('Sair'),
+                      onPressed: () {
+                        Navigator.pop(context); // Fecha o diálogo
+                        Navigator.pushReplacementNamed(context, '/'); // Volta para a tela inicial
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'settings',
+              child: Row(
+                children: [
+                  Icon(Icons.settings, color: Colors.grey),
+                  SizedBox(width: 8),
+                  Text('Configurações'),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
-            // Aqui você pode exibir uma lista de encomendas ativas
-            // ou um botão para rastrear uma encomenda específica.
-            ElevatedButton(
-              onPressed: () {
-                // Navegar para a tela de rastreamento (passando um ID de encomenda)
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const ClientTrackingScreen(
-                            orderId:
-                                'dummy_order_123'))); // Certifique-se que ClientTrackingScreen existe
-              },
-              child: const Text('Rastrear Encomenda (Exemplo)'),
+            const PopupMenuItem(
+              value: 'help',
+              child: Row(
+                children: [
+                  Icon(Icons.help, color: Colors.grey),
+                  SizedBox(width: 8),
+                  Text('Ajuda'),
+                ],
+              ),
             ),
-            // Exemplo de uso do BLoC (substitua pelo seu estado real)
-            /*
-            BlocBuilder<ClientBloc, ClientState>(
-              bloc: _clientBloc,
-              builder: (context, state) {
-                if (state is ClientLoading) {
-                  return const LoadingIndicator();
-                } else if (state is ActiveOrdersLoaded) {
-                  // Construa a lista de encomendas ativas
-                  return ListView.builder(...);
-                } else if (state is ClientError) {
-                  return Text('Erro: ${state.message}');
-                } else {
-                  return const Text('Nenhuma encomenda ativa.');
-                }
-              },
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.exit_to_app, color: Colors.grey),
+                  SizedBox(width: 8),
+                  Text('Sair'),
+                ],
+              ),
             ),
-            */
           ],
         ),
+        
+        ],
+
+        
       ),
+      floatingActionButton: FloatingActionButton(
+      onPressed: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Adicionar novo pedido (a implementar)')),
+        );
+      },
+      tooltip: 'Novo Pedido',
+      child: const Icon(Icons.add),
+    ),
+      body: _buildActiveOrdersList(),
     );
   }
-}
+  
 
-// --- Definições de Placeholder para Navegação ---
-// Remova ou substitua pelas implementações reais
+  Widget _buildActiveOrdersList() {
+    if (_activeOrders.isEmpty) {
+      return const Center(
+        child: Text('Nenhum pedido ativo no momento.'),
+      );
+    }
 
-class ClientHistoryScreen extends StatelessWidget {
-  const ClientHistoryScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Histórico de Pedidos')),
-      body: const Center(child: Text('Histórico de Pedidos (WIP)')),
-    );
-  }
-}
-
-class ClientTrackingScreen extends StatelessWidget {
-  final String orderId;
-  const ClientTrackingScreen({Key? key, required this.orderId})
-      : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Rastreando Pedido $orderId')),
-      body: const Center(child: Text('Tela de Rastreamento (WIP)')),
+    return ListView.builder(
+      itemCount: _activeOrders.length,
+      itemBuilder: (context, index) {
+        final order = _activeOrders[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: ListTile(
+            title: Text(order.description),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Status: ${order.status}'),
+                Text('Previsão: ${order.estimatedDelivery.toString().substring(0, 16)}'),
+                Text('Motorista: ${order.driverName}'),
+              ],
+            ),
+            trailing: ElevatedButton(
+              child: const Text('Rastrear'),
+              onPressed: () {
+                // Navegar para a tela de rastreamento passando o ID como argumento
+                Navigator.pushNamed(
+                  context, 
+                  '/client_tracking',
+                  arguments: order.id,
+                );
+              },
+            ),
+            isThreeLine: true,
+          ),
+        );
+      },
     );
   }
 }

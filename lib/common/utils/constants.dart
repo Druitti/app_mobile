@@ -1,10 +1,29 @@
 import 'package:flutter/material.dart';
 
 // Cores
-const kPrimaryColor = Colors.blue;
-const kSecondaryColor = Colors.amber;
-const kTextColor = Colors.black87;
-const kBackgroundColor = Colors.white;
+import 'package:flutter/material.dart';
+
+// App information
+
+// Colors
+const Color kPrimaryColor = Color(0xFF2196F3); // Azul
+const Color kSecondaryColor = Color(0xFF4CAF50); // Verde
+const Color kAccentColor = Color(0xFFFFC107); // Amarelo
+const Color kBackgroundColor = Color(0xFFF5F5F5); // Cinza claro
+const Color kTextColor = Color(0xFF212121); // Quase preto
+const Color kTextLightColor = Color(0xFF757575); // Cinza
+
+// Strings de navegação
+const String routeClientHome = '/client_home';
+const String routeDriverHome = '/driver_home';
+const String routeClientHistory = '/client_history';
+const String routeClientTracking = '/client_tracking';
+const String routeDriverCompleted = '/driver_completed';
+const String routeDeliveryNavigation = '/delivery_navigation';
+const String routeUpdateStatus = '/update_status';
+
+// Valores padrão
+const int apiTimeoutSeconds = 10;
 
 // Strings (Exemplos - podem ser movidos para internacionalização)
 const String appTitle = 'App de Entregas';

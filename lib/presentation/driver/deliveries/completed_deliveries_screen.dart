@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:app_mobile/common/model/delivery.dart'; // Importar modelo Delivery
+import 'package:app_mobile/common/model/delivery.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
-import 'package:app_mobile/presentation/driver/bloc/driver_bloc.dart'; // Importar BLoC
-import 'package:app_mobile/common/utils/helpers.dart'; // Para formatDateTime
 
 class CompletedDeliveriesScreen extends StatefulWidget {
   const CompletedDeliveriesScreen({Key? key}) : super(key: key);
@@ -13,10 +11,7 @@ class CompletedDeliveriesScreen extends StatefulWidget {
 }
 
 class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
-  // Instanciar BLoC (via Provider ou DI)
-  // final DriverBloc _driverBloc = DriverBloc(); // Exemplo
-
-  // Exemplo de dados de entregas concluídas (substituir com dados do BLoC/SQLite)
+  // Exemplo de dados de entregas concluídas
   final List<Delivery> _completedDeliveries = [
     Delivery(
       id: 'delivery_999',
@@ -45,7 +40,7 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
   @override
   void initState() {
     super.initState();
-    // Disparar evento para carregar entregas concluídas (do SQLite)
+    // Inicializar carregamento de entregas concluídas com o BLoC
     // _driverBloc.add(LoadCompletedDeliveriesEvent());
   }
 
@@ -54,43 +49,34 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Entregas Concluídas'),
+           actions: [
+        // Botão de filtro
+        IconButton(
+          icon: const Icon(Icons.filter_list),
+          tooltip: 'Filtrar',
+          onPressed: () {
+            // Implementação similar ao filtro do histórico de cliente
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Filtrar entregas (a implementar)')),
+            );
+          },
+        ),
+      ],
       ),
-      body: _buildCompletedDeliveriesList(), // Usar método separado
-      // Exemplo com BlocBuilder:
-      /*
-      body: BlocBuilder<DriverBloc, DriverState>(
-        bloc: _driverBloc,
-        builder: (context, state) {
-          if (state is DriverLoading) {
-            return const LoadingIndicator();
-          } else if (state is CompletedDeliveriesLoaded) {
-            if (state.deliveries.isEmpty) {
-              return const Center(child: Text('Nenhuma entrega concluída encontrada.'));
-            }
-            return _buildCompletedDeliveriesList(state.deliveries);
-          } else if (state is DriverError) {
-            return Center(child: Text('Erro ao carregar entregas concluídas: ${state.message}'));
-          } else {
-            return const Center(child: Text('Carregando histórico...'));
-          }
-        },
-      ),
-      */
+      
+      body: _buildCompletedDeliveriesList(),
     );
   }
 
-  Widget _buildCompletedDeliveriesList(/* List<Delivery> deliveries */) {
-    // Usando a lista de exemplo _completedDeliveries por enquanto
-    final deliveries = _completedDeliveries;
-
-    if (deliveries.isEmpty) {
+  Widget _buildCompletedDeliveriesList() {
+    if (_completedDeliveries.isEmpty) {
       return const Center(child: Text('Nenhuma entrega concluída encontrada.'));
     }
 
     return ListView.builder(
-      itemCount: deliveries.length,
+      itemCount: _completedDeliveries.length,
       itemBuilder: (context, index) {
-        final delivery = deliveries[index];
+        final delivery = _completedDeliveries[index];
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: ListTile(
@@ -98,11 +84,42 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
             title: Text(delivery.description),
             subtitle: Text('Cliente: ${delivery.clientName}\n' +
                 'Endereço: ${delivery.deliveryAddress}\n' +
-                'Concluída em: ${formatDateTime(delivery.timestamp)}'),
+                'Concluída em: ${delivery.timestamp.toString().substring(0, 16)}'),
             isThreeLine: true,
             onTap: () {
-              // Opcional: Mostrar detalhes da entrega concluída, incluindo a foto
-              // showDialog(...);
+              // Mostrar detalhes da entrega concluída em um diálogo
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: Text('Entrega ${delivery.id}'),
+                    content: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Cliente: ${delivery.clientName}'),
+                          Text('Descrição: ${delivery.description}'),
+                          Text('Endereço: ${delivery.deliveryAddress}'),
+                          Text('Concluída em: ${delivery.timestamp.toString().substring(0, 16)}'),
+                          if (delivery.photoPath != null) 
+                            const Text('\nFoto da entrega disponível'),
+                          if (delivery.latitude != null && delivery.longitude != null)
+                            Text('\nLocalização: ${delivery.latitude}, ${delivery.longitude}'),
+                        ],
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        child: const Text('Fechar'),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ],
+                  );
+                },
+              );
             },
           ),
         );

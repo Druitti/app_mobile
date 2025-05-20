@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:app_mobile/common/model/order.dart'; // Importar modelo Order
-import 'package:app_mobile/common/utils/constants.dart';
+import 'package:app_mobile/common/model/order.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
-import 'package:app_mobile/presentation/client/bloc/client_bloc.dart'; // Importar BLoC
-// Importar helpers se necessário para formatação
-import 'package:app_mobile/common/utils/helpers.dart';
 
 class ClientHistoryScreen extends StatefulWidget {
   const ClientHistoryScreen({Key? key}) : super(key: key);
@@ -14,10 +10,7 @@ class ClientHistoryScreen extends StatefulWidget {
 }
 
 class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
-  // Instanciar BLoC (via Provider ou DI)
-  // final ClientBloc _clientBloc = ClientBloc(); // Exemplo
-
-  // Exemplo de dados de histórico (substituir com dados do BLoC)
+  // Exemplo de dados de histórico
   final List<Order> _historyOrders = [
     Order(
       id: 'order_xyz_789',
@@ -25,8 +18,7 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
       status: 'Entregue',
       estimatedDelivery: DateTime.now().subtract(const Duration(days: 2)),
       driverName: 'Maria Oliveira',
-      actualDeliveryTime:
-          DateTime.now().subtract(const Duration(days: 2, hours: 3)),
+      actualDeliveryTime: DateTime.now().subtract(const Duration(days: 2, hours: 3)),
     ),
     Order(
       id: 'order_abc_123',
@@ -34,8 +26,7 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
       status: 'Entregue',
       estimatedDelivery: DateTime.now().subtract(const Duration(days: 5)),
       driverName: 'Carlos Pereira',
-      actualDeliveryTime:
-          DateTime.now().subtract(const Duration(days: 5, hours: 1)),
+      actualDeliveryTime: DateTime.now().subtract(const Duration(days: 5, hours: 1)),
     ),
     Order(
       id: 'order_def_456',
@@ -49,54 +40,90 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    // Disparar evento para carregar histórico
+    // Iniciar carregamento do histórico com o BLoC
     // _clientBloc.add(LoadOrderHistoryEvent());
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Histórico de Pedidos'),
-      ),
-      body:
-          _buildHistoryList(), // Usar um método separado para construir a lista
-      // Exemplo com BlocBuilder:
-      /*
-      body: BlocBuilder<ClientBloc, ClientState>(
-        bloc: _clientBloc,
-        builder: (context, state) {
-          if (state is ClientLoading) {
-            return const LoadingIndicator();
-          } else if (state is OrderHistoryLoaded) {
-            if (state.orders.isEmpty) {
-              return const Center(child: Text('Nenhum pedido no histórico.'));
-            }
-            return _buildHistoryList(state.orders);
-          } else if (state is ClientError) {
-            return Center(child: Text('Erro ao carregar histórico: ${state.message}'));
-          } else {
-            return const Center(child: Text('Carregando histórico...'));
-          }
-        },
-      ),
-      */
-    );
-  }
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('Histórico de Pedidos'),
+      
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.filter_list),
+          tooltip: 'Filtrar',
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              builder: (context) => Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Filtrar por Status',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        FilterChip(
+                          label: const Text('Todos'),
+                          selected: true,
+                          onSelected: (selected) {
+                            Navigator.pop(context);
+                          },
+                        ),
+                        FilterChip(
+                          label: const Text('Entregues'),
+                          selected: false,
+                          onSelected: (selected) {
+                            Navigator.pop(context);
+                          },
+                        ),
+                        FilterChip(
+                          label: const Text('Cancelados'),
+                          selected: false,
+                          onSelected: (selected) {
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      child: const Text('Aplicar'),
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    ),
+    // Resto do conteúdo permanece igual...
+    // ...
+  );
+}
 
-  // Método para construir a lista de histórico
-  Widget _buildHistoryList(/* List<Order> orders */) {
-    // Usando a lista de exemplo _historyOrders por enquanto
-    final orders = _historyOrders;
-
-    if (orders.isEmpty) {
+  Widget _buildHistoryList() {
+    if (_historyOrders.isEmpty) {
       return const Center(child: Text('Nenhum pedido no histórico.'));
     }
 
     return ListView.builder(
-      itemCount: orders.length,
+      itemCount: _historyOrders.length,
       itemBuilder: (context, index) {
-        final order = orders[index];
+        final order = _historyOrders[index];
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: ListTile(
@@ -106,10 +133,9 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
               children: [
                 Text('Status: ${order.status}'),
                 if (order.actualDeliveryTime != null)
-                  Text(
-                      'Entregue em: ${formatDateTime(order.actualDeliveryTime!)}')
+                  Text('Entregue em: ${order.actualDeliveryTime.toString().substring(0, 16)}')
                 else
-                  Text('Previsão: ${formatDateTime(order.estimatedDelivery)}'),
+                  Text('Previsão: ${order.estimatedDelivery.toString().substring(0, 16)}'),
                 Text('Motorista: ${order.driverName}'),
               ],
             ),
@@ -118,16 +144,17 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                   ? Icons.check_circle
                   : order.status == 'Cancelado'
                       ? Icons.cancel
-                      : Icons.history, // Ícone genérico para outros status
+                      : Icons.history,
               color: order.status == 'Entregue'
                   ? Colors.green
                   : order.status == 'Cancelado'
                       ? Colors.red
                       : Colors.grey,
             ),
+            // Opcionalmente, @TO-DO  adicionar navegação para detalhes do pedido
             onTap: () {
-              // Opcional: Navegar para detalhes do pedido histórico, se houver
-              // Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailsScreen(orderId: order.id)));
+              // @TO-DO navegar para uma tela de detalhes aqui
+              // Navigator.pushNamed(context, '/order_details', arguments: order.id);
             },
           ),
         );

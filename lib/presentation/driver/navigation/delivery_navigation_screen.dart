@@ -1,16 +1,6 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:app_mobile/common/model/delivery.dart';
-import 'package:app_mobile/common/widgets/custom_button.dart';
-import 'package:app_mobile/presentation/driver/update_status/update_status_screen.dart';
-import 'package:app_mobile/services/location_service.dart'; // Para obter localização atual
-import 'package:app_mobile/common/utils/failures.dart'; // Para tratar falhas
-import 'package:app_mobile/common/utils/helpers.dart'; // Para showSnackBar
-import 'package:dartz/dartz.dart' as dartz;
-import 'package:geolocator/geolocator.dart';
-// Importar geocoding ou similar para converter endereço em LatLng (opcional, mas recomendado)
-// import 'package:geocoding/geocoding.dart';
 
 class DeliveryNavigationScreen extends StatefulWidget {
   final Delivery delivery;
@@ -19,206 +9,184 @@ class DeliveryNavigationScreen extends StatefulWidget {
       : super(key: key);
 
   @override
-  State<DeliveryNavigationScreen> createState() =>
-      _DeliveryNavigationScreenState();
+  State<DeliveryNavigationScreen> createState() => _DeliveryNavigationScreenState();
 }
 
 class _DeliveryNavigationScreenState extends State<DeliveryNavigationScreen> {
-  final LocationService _locationService = LocationService();
   GoogleMapController? _mapController;
-  StreamSubscription<dartz.Either<Failure, Position>>? _locationSubscription;
-
-  LatLng? _driverPosition;
-  LatLng? _destinationPosition; // Posição do endereço de entrega
   Set<Marker> _markers = {};
-
+  
+  // Coordenadas de exemplo (pode ser substituído por geocoding do endereço real)
+  late LatLng _destination;
+  
   @override
   void initState() {
     super.initState();
-    _getDestinationCoordinates();
-    _startLocationUpdates();
+    // Definir destino com base na entrega ou usar valores padrão
+    _destination = LatLng(
+      widget.delivery.latitude ?? -23.5505,
+      widget.delivery.longitude ?? -46.6333,
+    );
+    
+    _addMarkers();
   }
-
-  @override
-  void dispose() {
-    _locationSubscription?.cancel();
-    super.dispose();
+  
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
   }
-
-  // Função para converter endereço em coordenadas (Placeholder)
-  // Idealmente, use um pacote como 'geocoding'
-  Future<void> _getDestinationCoordinates() async {
-    // Simulação - Substitua por geocoding real
-    // Exemplo: List<Location> locations = await locationFromAddress(widget.delivery.deliveryAddress);
-    // if (locations.isNotEmpty) { ... }
-    // Usando uma coordenada fixa como placeholder:
-    _destinationPosition = const LatLng(-23.5610, -46.6400); // Exemplo
-    _updateMarkers();
-  }
-
-  void _startLocationUpdates() {
-    _locationSubscription =
-        _locationService.getLocationStream().listen((result) {
-      result.fold(
-        (failure) {
-          // Tratar erro ao obter localização (ex: mostrar SnackBar)
-          if (mounted) {
-            showSnackBar(
-                context, 'Erro ao obter localização: ${failure.message}',
-                isError: true);
-          }
-          print("Erro no stream de localização: ${failure.message}");
-        },
-        (position) {
-          if (mounted) {
-            setState(() {
-              _driverPosition = LatLng(position.latitude, position.longitude);
-              _updateMarkers();
-            });
-            // Opcional: Animar câmera para seguir o motorista
-            // _mapController?.animateCamera(CameraUpdate.newLatLng(_driverPosition!));
-          }
-        },
-      );
-    });
-  }
-
-  void _updateMarkers() {
-    Set<Marker> newMarkers = {};
-    if (_driverPosition != null) {
-      newMarkers.add(
-        Marker(
-          markerId: const MarkerId('driver'),
-          position: _driverPosition!,
-          infoWindow: const InfoWindow(title: 'Sua Posição'),
-          icon:
-              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        ),
-      );
-    }
-    if (_destinationPosition != null) {
-      newMarkers.add(
+  
+  void _addMarkers() {
+    setState(() {
+      _markers.add(
         Marker(
           markerId: const MarkerId('destination'),
-          position: _destinationPosition!,
-          infoWindow:
-              InfoWindow(title: 'Destino: ${widget.delivery.clientName}'),
+          position: _destination,
+          infoWindow: InfoWindow(title: widget.delivery.deliveryAddress),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );
-    }
-    setState(() {
-      _markers = newMarkers;
     });
-
-    // Ajustar câmera para mostrar ambos os marcadores, se possível
-    if (_driverPosition != null &&
-        _destinationPosition != null &&
-        _mapController != null) {
-      LatLngBounds bounds = LatLngBounds(
-        southwest: LatLng(
-          _driverPosition!.latitude < _destinationPosition!.latitude
-              ? _driverPosition!.latitude
-              : _destinationPosition!.latitude,
-          _driverPosition!.longitude < _destinationPosition!.longitude
-              ? _driverPosition!.longitude
-              : _destinationPosition!.longitude,
-        ),
-        northeast: LatLng(
-          _driverPosition!.latitude > _destinationPosition!.latitude
-              ? _driverPosition!.latitude
-              : _destinationPosition!.latitude,
-          _driverPosition!.longitude > _destinationPosition!.longitude
-              ? _driverPosition!.longitude
-              : _destinationPosition!.longitude,
-        ),
-      );
-      _mapController!.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, 50.0)); // 50.0 é o padding
-    }
   }
-
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-    _updateMarkers(); // Garante que os marcadores sejam exibidos quando o mapa estiver pronto
-  }
-
+  
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Navegação da Entrega'),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            flex: 3,
-            child: GoogleMap(
-              onMapCreated: _onMapCreated,
-              initialCameraPosition: CameraPosition(
-                // Começa centralizado no destino ou na posição inicial do motorista
-                target: _destinationPosition ??
-                    _driverPosition ??
-                    const LatLng(-23.5505, -46.6333),
-                zoom: 14.0,
-              ),
-              markers: _markers,
-              myLocationEnabled:
-                  false, // Usamos nosso próprio marcador para o motorista
-              myLocationButtonEnabled: false,
-              // Adicionar Polyline para a rota (requer Directions API ou similar)
+  @override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('Navegação para Entrega'),
+      // Esta tela precisa de um tratamento especial para o botão voltar
+      // já que geralmente vem após aceitar uma entrega
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () {
+          // Confirmar se deseja cancelar a navegação
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Cancelar Navegação'),
+              content: const Text('Deseja voltar à lista de entregas disponíveis?'),
+              actions: [
+                TextButton(
+                  child: const Text('Não'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                TextButton(
+                  child: const Text('Sim'),
+                  onPressed: () {
+                    Navigator.pop(context); // Fecha o diálogo
+                    Navigator.pushReplacementNamed(context, '/driver_home');
+                  },
+                ),
+              ],
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: SingleChildScrollView(
+          );
+        },
+      ),
+      actions: [
+        // Botão para alternar visualização do mapa
+        IconButton(
+          icon: const Icon(Icons.layers),
+          tooltip: 'Alterar Mapa',
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Alternar tipo de mapa (a implementar)')),
+            );
+          },
+        ),
+      ],
+    ),
+    body: Column(
+      children: [
+        Expanded(
+          flex: 3,
+          child: Stack(
+            children: [
+              // Mapa (mantém o existente)
+              GoogleMap(
+                onMapCreated: _onMapCreated,
+                initialCameraPosition: CameraPosition(
+                  target: _destination,
+                  zoom: 14.0,
+                ),
+                markers: _markers,
+              ),
+              // Botões de zoom no mapa (adicionado)
+              Positioned(
+                top: 10,
+                right: 10,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Entrega: ${widget.delivery.description}',
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('Cliente: ${widget.delivery.clientName}'),
-                    const SizedBox(height: 8),
-                    Text('Endereço: ${widget.delivery.deliveryAddress}'),
-                    const SizedBox(height: 20),
-                    CustomButton(
-                      text: 'Atualizar Status / Cheguei',
+                    FloatingActionButton.small(
+                      heroTag: "zoom_in",
+                      child: const Icon(Icons.add),
                       onPressed: () {
-                        // Navegar para a tela de atualização de status
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                UpdateStatusScreen(delivery: widget.delivery),
-                          ),
-                        );
+                        _mapController?.animateCamera(CameraUpdate.zoomIn());
                       },
                     ),
-                    const SizedBox(height: 10),
-                    // Opcional: Botão para abrir navegação externa
-                    /*
-                    CustomButton(
-                      text: 'Abrir no Google Maps / Waze',
+                    const SizedBox(height: 8),
+                    FloatingActionButton.small(
+                      heroTag: "zoom_out",
+                      child: const Icon(Icons.remove),
                       onPressed: () {
-                        // Implementar lógica para abrir app de navegação externo
-                        // (usando url_launcher e coordenadas de destino)
+                        _mapController?.animateCamera(CameraUpdate.zoomOut());
                       },
-                      color: Colors.grey,
                     ),
-                    */
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Detalhes da Entrega:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                Text('Cliente: ${widget.delivery.clientName}'),
+                Text('Descrição: ${widget.delivery.description}'),
+                Text('Endereço: ${widget.delivery.deliveryAddress}'),
+                Text('Prazo: ${widget.delivery.timestamp.toString().substring(0, 16)}'),
+                const Spacer(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // Botão para ligar para o cliente
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.phone),
+                      label: const Text('Ligar'),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Ligando para o cliente... (simulação)')),
+                        );
+                      },
+                    ),
+                    // Botão para atualizar status (original)
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.update),
+                      label: const Text('Atualizar Status'),
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/update_status',
+                          arguments: widget.delivery,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 }

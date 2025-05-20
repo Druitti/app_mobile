@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:app_mobile/common/model/delivery.dart'; // Importar modelo Delivery
+import 'package:app_mobile/common/model/delivery.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
-import 'package:app_mobile/presentation/driver/bloc/driver_bloc.dart'; // Importar BLoC
-import 'package:app_mobile/presentation/driver/deliveries/completed_deliveries_screen.dart'; // Para navegação
-import 'package:app_mobile/presentation/driver/navigation/delivery_navigation_screen.dart'; // Para navegação
 import 'package:app_mobile/common/utils/helpers.dart'; // Para showConfirmationDialog
 
 class DriverHomeScreen extends StatefulWidget {
@@ -14,10 +11,9 @@ class DriverHomeScreen extends StatefulWidget {
 }
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
-  // Instanciar BLoC (via Provider ou DI)
-  // final DriverBloc _driverBloc = DriverBloc(); // Exemplo
-
-  // Exemplo de dados de entregas disponíveis (substituir com dados do BLoC)
+  bool _isLoading = false; // Adicionando a variável faltante
+  
+  // Exemplo de dados de entregas disponíveis
   final List<Delivery> _availableDeliveries = [
     Delivery(
       id: 'delivery_111',
@@ -40,7 +36,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Disparar evento para carregar entregas disponíveis
+    // @TO-DO Inicializar carregamento de entregas com o BLoC
     // _driverBloc.add(LoadAvailableDeliveriesEvent());
   }
 
@@ -49,57 +45,115 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Entregas Disponíveis'),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'Entregas Concluídas',
             onPressed: () {
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const CompletedDeliveriesScreen()));
+              // Navegar para entregas concluídas usando rota nomeada
+              Navigator.pushNamed(context, '/driver_completed');
             },
           ),
-          // Adicionar outras ações se necessário (ex: perfil, configurações)
+          PopupMenuButton<String>(
+          tooltip: 'Menu',
+          onSelected: (value) {
+            if (value == 'profile') {
+              // Navegar para perfil (a ser implementado)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Perfil (a implementar)')),
+              );
+            } else if (value == 'settings') {
+              // Navegar para configurações (a ser implementado)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Configurações (a implementar)')),
+              );
+            } else if (value == 'logout') {
+              // Voltar para a tela de seleção
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Sair'),
+                  content: const Text('Deseja sair do modo Motorista?'),
+                  actions: [
+                    TextButton(
+                      child: const Text('Cancelar'),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    TextButton(
+                      child: const Text('Sair'),
+                      onPressed: () {
+                        Navigator.pop(context); // Fecha o diálogo
+                        Navigator.pushReplacementNamed(context, '/'); // Volta para a tela inicial
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'profile',
+              child: Row(
+                children: [
+                  Icon(Icons.person, color: Colors.grey),
+                  SizedBox(width: 8),
+                  Text('Meu Perfil'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'settings',
+              child: Row(
+                children: [
+                  Icon(Icons.settings, color: Colors.grey),
+                  SizedBox(width: 8),
+                  Text('Configurações'),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.exit_to_app, color: Colors.grey),
+                  SizedBox(width: 8),
+                  Text('Sair'),
+                ],
+              ),
+            ),
+          ],
+        ),
         ],
       ),
-      body: _buildAvailableDeliveriesList(), // Usar método separado
-      // Exemplo com BlocBuilder:
-      /*
-      body: BlocBuilder<DriverBloc, DriverState>(
-        bloc: _driverBloc,
-        builder: (context, state) {
-          if (state is DriverLoading) {
-            return const LoadingIndicator();
-          } else if (state is AvailableDeliveriesLoaded) {
-            if (state.deliveries.isEmpty) {
-              return const Center(child: Text('Nenhuma entrega disponível no momento.'));
-            }
-            return _buildAvailableDeliveriesList(state.deliveries);
-          } else if (state is DriverError) {
-            return Center(child: Text('Erro ao carregar entregas: ${state.message}'));
-          } else {
-            return const Center(child: Text('Carregando entregas...'));
-          }
-        },
-      ),
-      */
+      floatingActionButton: FloatingActionButton(
+      onPressed: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Atualizando entregas disponíveis...')),
+        );
+        // @TODO implementar atualização da lista de entregas
+      },
+      tooltip: 'Atualizar',
+      child: const Icon(Icons.refresh),
+    ),
+      body: _isLoading 
+          ? const LoadingIndicator() 
+          : _buildAvailableDeliveriesList(),
     );
   }
 
-  Widget _buildAvailableDeliveriesList(/* List<Delivery> deliveries */) {
-    // Usando a lista de exemplo _availableDeliveries por enquanto
-    final deliveries = _availableDeliveries;
-
-    if (deliveries.isEmpty) {
+  Widget _buildAvailableDeliveriesList() {
+    if (_availableDeliveries.isEmpty) {
       return const Center(
           child: Text('Nenhuma entrega disponível no momento.'));
     }
 
     return ListView.builder(
-      itemCount: deliveries.length,
+      itemCount: _availableDeliveries.length,
       itemBuilder: (context, index) {
-        final delivery = deliveries[index];
+        final delivery = _availableDeliveries[index];
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: ListTile(
@@ -109,25 +163,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             trailing: ElevatedButton(
               child: const Text('Aceitar'),
               onPressed: () async {
-                // Lógica para aceitar a entrega
+                // Função de confirmação assumida como existente em helpers.dart
                 bool? confirmed = await showConfirmationDialog(
                   context,
                   'Confirmar Entrega',
                   'Deseja aceitar esta entrega?\n${delivery.description}',
                 );
-                if (confirmed == true) {
-                  print('Aceitando entrega: ${delivery.id}');
-                  // Disparar evento no BLoC para aceitar
+                
+                if (confirmed != null && confirmed) {
+                  //// @TO-DO Lógica para aceitar a entrega com o BLoC
                   // _driverBloc.add(AcceptDeliveryEvent(delivery.id));
-
+                  
                   // Navegar para a tela de navegação/detalhes após aceitar
-                  Navigator.pushReplacement(
-                    // Use pushReplacement se não quiser voltar para esta tela
+                  Navigator.pushReplacementNamed(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          DeliveryNavigationScreen(delivery: delivery),
-                    ),
+                    '/delivery_navigation',
+                    arguments: delivery,
                   );
                 }
               },
