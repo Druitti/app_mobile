@@ -1,67 +1,86 @@
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:app_mobile/common/utils/constants.dart';
 import 'package:app_mobile/common/utils/exceptions.dart';
 import 'package:app_mobile/common/utils/failures.dart';
 import 'package:dartz/dartz.dart'; // Adicione dartz: ^0.10.1 no pubspec.yaml
 
 class LocationService {
-  Future<Either<Failure, Position>> getCurrentLocation() async {
+  static final LocationService _instance = LocationService._internal();
+
+  factory LocationService() => _instance;
+
+  LocationService._internal();
+
+  Future<bool> _handleLocationPermission() async {
     bool serviceEnabled;
     LocationPermission permission;
 
-    // Testa se os serviços de localização estão ativos.
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      // Serviços de localização não estão ativos, não é possível continuar
-      return Left(
-          PermissionFailure("Serviços de localização estão desativados."));
+      return false;
     }
 
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        // Permissões negadas, próximo passo é informar o usuário.
-        return Left(PermissionFailure(locationPermissionDenied));
+        return false;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      // Permissões negadas permanentemente, lidar com isso.
-      return Left(PermissionFailure(
-          "Permissão de localização negada permanentemente. Abra as configurações do app."));
+      return false;
     }
 
-    // Quando temos permissão, obtemos a localização atual.
+    return true;
+  }
+
+  Future<Position?> getCurrentLocation() async {
+    final hasPermission = await _handleLocationPermission();
+    if (!hasPermission) {
+      return null;
+    }
+
     try {
-      Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
-      return Right(position);
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
     } catch (e) {
-      // Tratar outros erros potenciais
-      return Left(UnknownFailure(
-          "Não foi possível obter a localização: ${e.toString()}"));
+      return null;
     }
   }
 
-  // Opcional: Stream para atualizações de localização
-  Stream<Either<Failure, Position>> getLocationStream() {
-    LocationSettings locationSettings = const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Atualiza a cada 10 metros
+  Stream<Position> getLocationStream() {
+    return Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
     );
+  }
 
-    return Geolocator.getPositionStream(locationSettings: locationSettings)
-        .map((position) => Right<Failure, Position>(position))
-        .handleError((error) {
-      // Aqui você pode mapear diferentes tipos de erro para Failures específicas
-      print("Erro no stream de localização: $error");
-      if (error is PermissionDeniedException) {
-        return Left<Failure, Position>(
-            PermissionFailure(locationPermissionDenied));
-      }
-      return Left<Failure, Position>(
-          UnknownFailure("Erro no stream de localização: ${error.toString()}"));
-    });
+  Future<double> calculateDistance(
+    double startLat,
+    double startLng,
+    double endLat,
+    double endLng,
+  ) {
+    return Geolocator.distanceBetween(
+      startLat,
+      startLng,
+      endLat,
+      endLng,
+    );
+  }
+
+  Future<bool> requestLocationPermission() async {
+    final status = await Permission.location.request();
+    return status.isGranted;
+  }
+
+  Future<bool> checkLocationPermission() async {
+    final status = await Permission.location.status;
+    return status.isGranted;
   }
 }
