@@ -60,7 +60,7 @@ class LocationService {
     );
   }
 
-  Future<double> calculateDistance(
+  double calculateDistance(
     double startLat,
     double startLng,
     double endLat,

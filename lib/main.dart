@@ -1,3 +1,4 @@
+import 'package:app_mobile/presentation/client/home/client_home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -154,7 +155,7 @@ class HomeScreen extends StatelessWidget {
       ),
       body: isMotorista
           ? const MotoristaHomeScreen()
-          : const ClienteHomeScreen(),
+          : const ClientHomeScreen(),
     );
   }
 }

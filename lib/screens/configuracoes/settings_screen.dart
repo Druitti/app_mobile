@@ -1,3 +1,4 @@
+import 'package:app_mobile/main.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/database_service.dart';
