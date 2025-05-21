@@ -1,12 +1,14 @@
-
 import 'package:app_mobile/main.dart';
 import 'package:app_mobile/presentation/client/tracking/client_tracking_screen.dart';
 import 'package:app_mobile/presentation/driver/deliveries/completed_deliveries_screen.dart';
 import 'package:app_mobile/presentation/driver/navigation/delivery_navigation_screen.dart';
+import 'package:app_mobile/presentation/shared/setting/setting_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:app_mobile/common/model/delivery.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
 import 'package:app_mobile/common/utils/helpers.dart';
+import 'package:app_mobile/services/database_service.dart'; // Importe o serviço de banco de dados
+ // Importe o Firestore
 
 class DriverHomeScreen extends StatefulWidget {
   final bool showAppBar;
@@ -18,37 +20,85 @@ class DriverHomeScreen extends StatefulWidget {
 }
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
-  bool _isLoading = false;
-  
-  // Exemplo de dados de entregas disponíveis
-  final List<Delivery> _availableDeliveries = [
-    Delivery(
-      id: 'delivery_111',
-      description: 'Pacote Pequeno - Documentos Urgentes',
-      status: 'Pendente',
-      clientName: 'Empresa X',
-      deliveryAddress: 'Rua das Flores, 123, São Paulo',
-      timestamp: DateTime.now().add(const Duration(minutes: 30)),
-    ),
-    Delivery(
-      id: 'delivery_222',
-      description: 'Caixa Média - Eletrônicos',
-      status: 'Pendente',
-      clientName: 'Loja Y',
-      deliveryAddress: 'Avenida Principal, 456, Centro',
-      timestamp: DateTime.now().add(const Duration(hours: 1)),
-    ),
-  ];
+  bool _isLoading = true;
+  List<Delivery> _availableDeliveries = [];
+  late DatabaseService _databaseService;
+  // Possível stream subscription para o Firebase
+  Stream<List<Delivery>>? _deliveriesStream;
 
   @override
   void initState() {
     super.initState();
-    // Inicializar carregamento de entregas com o BLoC
+    _databaseService = DatabaseService();
+    _loadDeliveries();
+  }
+
+  @override
+  void dispose() {
+    // Cancelar quaisquer subscriptions para evitar memory leaks
+    super.dispose();
+  }
+
+  // Carregar entregas do Firebase
+  void _loadDeliveries() {
+    setState(() {
+      _isLoading = true;
+    });
+
+    _deliveriesStream = _databaseService.getAvailableDeliveries();
+    
+    // Se preferir usar um listener em vez de StreamBuilder
+    _deliveriesStream!.listen((deliveries) {
+      if (mounted) {
+        setState(() {
+          _availableDeliveries = deliveries;
+          _isLoading = false;
+        });
+      }
+    }, onError: (error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar entregas: $error')),
+        );
+      }
+    });
+  }
+
+  // Método para atualizar manualmente a lista de entregas
+  void _refreshDeliveries() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Atualizando entregas disponíveis...')),
+    );
+    _loadDeliveries();
+  }
+
+  // Método para aceitar uma entrega
+  Future<void> _acceptDelivery(Delivery delivery) async {
+    try {
+      _databaseService.getDeliveryById(delivery.id);
+      // Navegação para a tela de navegação após aceitar
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DeliveryNavigationScreen(delivery: delivery),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao aceitar entrega: $e')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ------>>> alterando aqui: decide se mostra AppBar com base no parâmetro
     return widget.showAppBar 
         ? Scaffold(
             appBar: AppBar(
@@ -59,97 +109,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   icon: const Icon(Icons.history),
                   tooltip: 'Entregas Concluídas',
                   onPressed: () {
-                    Navigator.pushNamed(context, '/driver_completed');
                     Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CompletedDeliveriesScreen(),
-                    ),
-                  );
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CompletedDeliveriesScreen(),
+                      ),
+                    );
                   },
+                ),IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(), // ------>>> alterando aqui: usa SettingScreen diretamente
                 ),
-                PopupMenuButton<String>(
-                  tooltip: 'Menu',
-                  onSelected: (value) {
-                    if (value == 'profile') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Perfil (a implementar)')),
-                      );
-                    } else if (value == 'settings') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Configurações (a implementar)')),
-                      );
-                    } else if (value == 'logout') {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Sair'),
-                          content: const Text('Deseja sair do modo Motorista?'),
-                          actions: [
-                            TextButton(
-                              child: const Text('Cancelar'),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                            TextButton(
-                              child: const Text('Sair'),
-                              onPressed: () {
-                                Navigator.pop(context); // Fecha o diálogo
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const HomeScreen(),
-                                  ),
-                                ); // Volta para a tela inicial
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'profile',
-                      child: Row(
-                        children: [
-                          Icon(Icons.person, color: Colors.grey),
-                          SizedBox(width: 8),
-                          Text('Meu Perfil'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'settings',
-                      child: Row(
-                        children: [
-                          Icon(Icons.settings, color: Colors.grey),
-                          SizedBox(width: 8),
-                          Text('Configurações'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem(
-                      value: 'logout',
-                      child: Row(
-                        children: [
-                          Icon(Icons.exit_to_app, color: Colors.grey),
-                          SizedBox(width: 8),
-                          Text('Sair'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              );
+            },
+          ),
               ],
             ),
             floatingActionButton: FloatingActionButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Atualizando entregas disponíveis...')),
-                );
-                // Implementar atualização da lista de entregas
-              },
+              onPressed: _refreshDeliveries,
               tooltip: 'Atualizar',
               child: const Icon(Icons.refresh),
             ),
@@ -157,7 +138,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 ? const LoadingIndicator() 
                 : _buildAvailableDeliveriesList(),
           )
-        : _isLoading // ------>>> alterando aqui: retorna apenas o conteúdo se não mostrar AppBar
+        : _isLoading // Retorna apenas o conteúdo se não mostrar AppBar
             ? const LoadingIndicator() 
             : _buildAvailableDeliveriesList();
   }
@@ -188,19 +169,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 );
                 
                 if (confirmed != null && confirmed) {
-                  // Lógica para aceitar a entrega com o BLoC
-                  
-                  // Navegar para a tela de navegação/detalhes após aceitar
-                  try {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DeliveryNavigationScreen(delivery: delivery),
-          ),
-        );
-      } catch (e2) {
-        print('Segundo erro ao navegar: $e2');
-      }
+                  await _acceptDelivery(delivery);
                 }
               },
             ),

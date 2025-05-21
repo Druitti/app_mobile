@@ -183,7 +183,7 @@ Widget build(BuildContext context) {
                      (
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const DriverHomeScreen(),
+                        builder: (context) => const DriverHomeScreen(showAppBar: true),
                       ),
                     );
                   },

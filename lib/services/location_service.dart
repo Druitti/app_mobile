@@ -1,3 +1,4 @@
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -108,4 +109,30 @@ double calculateDistanceCoordinates(
     final status = await Permission.location.status;
     return status.isGranted;
   }
+    Future<List<String>> getAddressFromCoordinates(double latitude, double longitude) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
+      
+      List<String> formattedAddresses = [];
+      
+      for (var placemark in placemarks) {
+        // Formatar o endereço completo
+        final formattedAddress = [
+          placemark.street,
+          placemark.subLocality,
+          placemark.locality,
+          placemark.postalCode,
+          placemark.country,
+        ].where((element) => element != null && element.isNotEmpty).join(', ');
+        
+        formattedAddresses.add(formattedAddress);
+      }
+      
+      return formattedAddresses;
+    } catch (e) {
+      print('Erro ao obter endereço das coordenadas: $e');
+      return [];
+    }
+  }
 }
+

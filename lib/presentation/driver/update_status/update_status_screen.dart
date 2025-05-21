@@ -1,9 +1,15 @@
 import 'dart:io';
-
+import 'package:app_mobile/common/widgets/camera_widget.dart';
+import 'package:app_mobile/presentation/client/home/client_home_screen.dart';
+import 'package:app_mobile/presentation/driver/deliveries/driver_home_screen.dart';
 import 'package:app_mobile/services/camera_service.dart';
+import 'package:app_mobile/services/database_service.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:app_mobile/common/model/delivery.dart';
+import 'package:app_mobile/common/widgets/loading_indicator.dart';
+import 'package:flutter/services.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class UpdateStatusScreen extends StatefulWidget {
   final Delivery delivery;
@@ -18,6 +24,12 @@ class _UpdateStatusScreenState extends State<UpdateStatusScreen> {
   String _selectedStatus = 'Em Trânsito';
   String? _photoPath;
   bool _isLoading = false;
+  bool _statusChangeInProgress = false;
+  String? _errorMessage;
+  LatLng? _photoLocation;
+  String? _photoAddress;
+
+  late DatabaseService _databaseService;
   
   final List<String> _statusOptions = [
     'Pendente',
@@ -30,264 +42,351 @@ class _UpdateStatusScreenState extends State<UpdateStatusScreen> {
   @override
   void initState() {
     super.initState();
-    // Verificar se o status atual da entrega está na lista de opções
+    _databaseService = DatabaseService();
+    
+    // Inicializar com o status atual da entrega
     if (_statusOptions.contains(widget.delivery.status)) {
       _selectedStatus = widget.delivery.status;
     } else {
-      // Se não estiver na lista, use o primeiro status disponível
       _selectedStatus = _statusOptions.first;
     }
   }
-  
 
-Future<void> _capturePhoto() async {
-  // Mostrar indicador de carregamento
-  setState(() {
-    _isLoading = true;
-  });
+  // Função para capturar foto usando a câmera
+  // Função para capturar foto usando o CameraWidget
+  Future<void> _capturePhoto() async {
+    if (_isLoading) return; // Evitar múltiplas chamadas
 
-  // Obter a instância do serviço de câmera
-  final cameraService = CameraService();
-  
-  try {
-    // Verificar permissão de câmera
-    bool hasPermission = await cameraService.checkCameraPermission();
-    
-    // Se não tiver permissão, solicitar
-    if (!hasPermission) {
-      hasPermission = await cameraService.requestCameraPermission();
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Mostrar o CameraWidget em um diálogo
+      final result = await _showCameraWidget(context);
       
-      // Se ainda não tiver permissão após solicitação
-      if (!hasPermission) {
+      // Se o usuário cancelou
+      if (result == null) {
         setState(() {
           _isLoading = false;
         });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Permissão da câmera é necessária para capturar a foto'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        
         return;
       }
-    }
-    
-    // Inicializar a câmera
-    await cameraService.initialize();
-    
-    // Abrir diálogo/tela para a captura de foto
-    final resultado = await _showCameraPreview(context, cameraService);
-    
-    // Verificar se a foto foi capturada com sucesso
-    if (resultado == null) {
-      // Usuário cancelou ou ocorreu erro
+      
+      // Atualizar estado com o resultado (caminho da foto e localização)
       setState(() {
+        _photoPath = result['path'] as String?;
+        _photoLocation = result['location'] as LatLng?;
+        _photoAddress = result['address'] as String?;
         _isLoading = false;
       });
-      return;
+      
+      // Mostrar mensagem de sucesso
+      if (_photoLocation != null) {
+        _showMessage('Foto capturada com sucesso!\nLocalização registrada: ${_photoLocation!.latitude.toStringAsFixed(5)}, ${_photoLocation!.longitude.toStringAsFixed(5)}');
+      } else {
+        _showMessage('Foto capturada com sucesso!');
+      }
+      
+    } catch (e) {
+      print('Erro ao capturar foto: $e');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Erro ao capturar foto: ${e.toString()}';
+      });
+      
+      _showMessage('Erro ao capturar foto: ${e.toString()}', isError: true);
     }
-    
-    // Salvar imagem em armazenamento local
-    final File imageFile = File(resultado);
-    final savedPath = await cameraService.saveImageToLocal(imageFile);
-    
-    // Atualizar o estado com o caminho da foto
-    setState(() {
-      _photoPath = savedPath;
-      _isLoading = false;
-    });
-    print('Foto salva em: $savedPath');
-    
-    // Mostrar mensagem de sucesso
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Foto capturada com sucesso!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-    
-  } catch (e) {
-    print('Erro ao capturar foto: $e');
-    
-    // Atualizar estado para remover o carregamento
-    setState(() {
-      _isLoading = false;
-    });
-    
-    // Mostrar mensagem de erro
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Erro ao capturar foto: ${e.toString()}'),
-        backgroundColor: Colors.red,
-      ),
-    );
-  } finally {
-    // Liberar recursos da câmera
-    cameraService.dispose();
   }
-}
-  Future<String?> _showCameraPreview(BuildContext context, CameraService cameraService) async {
-  // Se o controlador da câmera não foi inicializado
-  if (cameraService.controller == null || !cameraService.controller!.value.isInitialized) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Não foi possível inicializar a câmera. Tente novamente.'),
-        backgroundColor: Colors.red,
-      ),
-    );
-    return null;
-  }
+
+  // Diálogo para exibir o CameraWidget
+ Future<Map<String, dynamic>?> _showCameraWidget(BuildContext context) async {
+  // Obter o tamanho da tela para melhor dimensionamento
+  final screenSize = MediaQuery.of(context).size;
+  final isPortrait = screenSize.height > screenSize.width;
   
-  // Exibir o diálogo com a visualização da câmera
-  return await showDialog<String>(
+  return await showDialog<Map<String, dynamic>>(
     context: context,
     barrierDismissible: false,
+    barrierColor: Colors.black87, // Fundo mais escuro para destacar a câmera
     builder: (context) {
       return Dialog(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                'Capturar Foto de Entrega',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            AspectRatio(
-              aspectRatio: cameraService.controller!.value.aspectRatio,
-              child: CameraPreview(cameraService.controller!),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Botão para cancelar
-                  TextButton.icon(
-                    icon: const Icon(Icons.cancel, color: Colors.red),
-                    label: const Text('Cancelar'),
-                    onPressed: () {
-                      Navigator.of(context).pop(null); // Retornar null indica cancelamento
-                    },
-                  ),
-                  
-                  // Botão para tirar foto
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Capturar'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        elevation: 0,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Cabeçalho do diálogo
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
                     ),
-                    onPressed: () async {
-                      try {
-                        // Capturar a foto
-                        final imagePath = await cameraService.takePicture();
-                        
-                        // Retornar o caminho da foto
-                        Navigator.of(context).pop(imagePath);
-                      } catch (e) {
-                        // Em caso de erro, fechar o diálogo e retornar null
-                        Navigator.of(context).pop(null);
-                        
-                        // Mostrar mensagem de erro
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Erro ao capturar foto: ${e.toString()}'),
-                            backgroundColor: Colors.red,
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.camera_alt_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Capturar Comprovante de Entrega',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                           ),
-                        );
-                      }
+                        ),
+                      ],
+                    ),
+                    Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: Colors.white.withOpacity(0.8),
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Container da câmera
+              Container(
+                height: isPortrait ? screenSize.height * 0.6 : screenSize.height * 0.7,
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                  child: CameraWidget(
+                    onImageCaptured: (path, location, address) {
+                      // Fornecer feedback tátil ao capturar imagem
+                      HapticFeedback.mediumImpact();
+                      
+                      Navigator.of(context).pop({
+                        'path': path,
+                        'location': location,
+                        'address': address,
+                      });
                     },
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+              
+              // Dica para o usuário
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                ),
+                child: const Text(
+                  'Aponte a câmera para o comprovante e toque no botão central para capturar a foto. A localização será registrada automaticamente.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     },
   );
 }
+  // Diálogo para exibir preview da câmera
+ 
   
-  Future<void> _updateDeliveryStatus() async {
-    // Simulação de atualização de status
-    setState(() {
-      _isLoading = true;
-    });
+  // Função auxiliar para exibir mensagens
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
     
-    // Simular processo de atualização com o backend
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Em um app real, usar o BLoC aqui
-    // _driverBloc.add(UpdateDeliveryStatusEvent(
-    //   id: widget.delivery.id,
-    //   status: _selectedStatus,
-    //   photoPath: _photoPath,
-    // ));
-    
-    setState(() {
-      _isLoading = false;
-    });
-    
-    // Mostrar confirmação e voltar para a tela anterior ou para home
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Status atualizado com sucesso!'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: Duration(seconds: isError ? 4 : 2),
       ),
     );
+  }
+
+  // Função para atualizar o status da entrega
+ Future<void> _updateDeliveryStatus() async {
+  if (_statusChangeInProgress) return;
+  
+  // Verificar se foto é obrigatória para entrega concluída
+  if (_selectedStatus == 'Entregue' && _photoPath == null) {
+    _showMessage('Uma foto é obrigatória para confirmar a entrega', isError: true);
+    return;
+  }
+  
+  setState(() {
+    _statusChangeInProgress = true;
+    _errorMessage = null;
+  });
+  
+  try {
+    // Preparar dados para atualização
+    final Map<String, dynamic> updatedData = {
+      'status': _selectedStatus,
+      'data_atualizacao': DateTime.now().toIso8601String(),
+    };
     
-    // Se entregue, voltar para a tela de entregas disponíveis
-    if (_selectedStatus == 'Entregue' || _selectedStatus == 'Falha na Entrega') {
-      Navigator.of(context).popUntil(ModalRoute.withName('/driver_home'));
-    } else {
-      // Caso contrário, voltar para a tela de navegação
-      Navigator.pop(context);
+    // Adicionar caminho da foto se disponível
+    if (_photoPath != null) {
+      updatedData['foto_assinatura'] = _photoPath;
     }
+    
+    // Adicionar localização da foto se disponível
+    if (_photoLocation != null) {
+      updatedData['foto_latitude'] = _photoLocation!.latitude;
+      updatedData['foto_longitude'] = _photoLocation!.longitude;
+      updatedData['endereco_confirmacao'] = _photoAddress;
+    }
+    
+    // Atualizar no banco de dados
+    final result = await _databaseService.atualizarEntrega(
+      widget.delivery.id, 
+      updatedData,
+    );
+    
+    if (result > 0) {
+      // Exibir mensagem de sucesso antes de navegar
+      _showMessage('Status atualizado com sucesso', isError: false);
+      
+      // Atraso curto para permitir que a mensagem seja vista
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Sucesso - retornar à tela anterior
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } else {
+      // Falha
+      _showMessage('Não foi possível atualizar o status', isError: true);
+      setState(() {
+        _statusChangeInProgress = false;
+      });
+    }
+    
+  } catch (e) {
+    print('Erro ao atualizar status: $e');
+    _showMessage('Erro ao atualizar status: ${e.toString()}', isError: true);
+    setState(() {
+      _statusChangeInProgress = false;
+      _errorMessage = 'Erro ao atualizar status: ${e.toString()}';
+    });
+  }
+}
+  Widget _buildPhotoLocationInfo() {
+  if (_photoLocation == null) return const SizedBox.shrink();
+  
+  return Container(
+    padding: const EdgeInsets.all(8),
+    margin: const EdgeInsets.only(top: 8),
+    decoration: BoxDecoration(
+      color: Colors.blue.shade50,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: Colors.blue.shade200),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.location_on, color: Colors.blue.shade700, size: 16),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                'Localização da foto:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _photoAddress ?? 'Latitude: ${_photoLocation!.latitude.toStringAsFixed(5)}, Longitude: ${_photoLocation!.longitude.toStringAsFixed(5)}',
+          style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
+        ),
+      ],
+    ),
+  );
+}
+  // Controlar o botão de voltar do dispositivo
+  Future<bool> _onWillPop() async {
+    // Bloquear navegação durante carregamento
+    if (_isLoading || _statusChangeInProgress) return false;
+    
+    // Confirmar descarte de alterações
+    if (_selectedStatus != widget.delivery.status || _photoPath != null) {
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Descartar alterações'),
+          content: const Text('Você tem alterações não salvas. Deseja descartar?'),
+          actions: [
+            TextButton(
+              child: const Text('Não'),
+              onPressed: () => Navigator.pop(context, false),
+            ),
+            TextButton(
+              child: const Text('Sim'),
+              onPressed: () => Navigator.pop(context, true),
+            ),
+          ],
+        ),
+      );
+      return confirm ?? false;
+    }
+    
+    return true;
   }
   
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      // Intercepta o botão voltar do dispositivo
-      onWillPop: () async {
-        // Se estiver carregando, não permite voltar
-        if (_isLoading) return false;
-        
-        // Se fez alterações, mostra diálogo de confirmação
-        if (_selectedStatus != widget.delivery.status || _photoPath != null) {
-          final bool? confirm = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Descartar alterações'),
-              content: const Text('Você tem alterações não salvas. Deseja descartar?'),
-              actions: [
-                TextButton(
-                  child: const Text('Não'),
-                  onPressed: () => Navigator.pop(context, false),
-                ),
-                TextButton(
-                  child: const Text('Sim'),
-                  onPressed: () => Navigator.pop(context, true),
-                ),
-              ],
-            ),
-          );
-          return confirm ?? false;
-        }
-        
-        return true; // Permite voltar normalmente
-      },
+      onWillPop: _onWillPop,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Atualizar Status de Entrega'),
-          // Mantém o botão voltar padrão, mas o WillPopScope acima irá interceptá-lo
           actions: [
-            // Botão de ajuda
             IconButton(
               icon: const Icon(Icons.help_outline),
               tooltip: 'Ajuda',
@@ -314,12 +413,35 @@ Future<void> _capturePhoto() async {
           ],
         ),
         body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: LoadingIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Exibir mensagem de erro se houver
+                  if (_errorMessage != null)
+                    Card(
+                      color: Colors.red.shade50,
+                      margin: const EdgeInsets.only(bottom: 16.0),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline, color: Colors.red.shade800),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: TextStyle(color: Colors.red.shade800),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  
+                  // Informações da entrega
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -337,6 +459,14 @@ Future<void> _capturePhoto() async {
                           Text('Cliente: ${widget.delivery.clientName}'),
                           Text('Descrição: ${widget.delivery.description}'),
                           Text('Endereço: ${widget.delivery.deliveryAddress}'),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Status atual: ${widget.delivery.status}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _getStatusColor(widget.delivery.status),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -344,6 +474,7 @@ Future<void> _capturePhoto() async {
                   
                   const SizedBox(height: 20),
                   
+                  // Seleção de novo status
                   const Text(
                     'Novo Status:',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -358,16 +489,31 @@ Future<void> _capturePhoto() async {
                           isExpanded: true,
                           value: _selectedStatus,
                           onChanged: (String? newValue) {
-                            if (newValue != null) {
+                            if (newValue != null && !_statusChangeInProgress) {
                               setState(() {
                                 _selectedStatus = newValue;
+                                // Remova a linha abaixo que fazia a atualização prematura
+                                // _databaseService.atualizarStatusEntrega(widget.delivery.id, newValue);
                               });
                             }
                           },
                           items: _statusOptions.map<DropdownMenuItem<String>>((String value) {
                             return DropdownMenuItem<String>(
                               value: value,
-                              child: Text(value),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColor(value),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(value),
+                                ],
+                              ),
                             );
                           }).toList(),
                         ),
@@ -377,90 +523,140 @@ Future<void> _capturePhoto() async {
                   
                   const SizedBox(height: 20),
                   
+                  // Área de foto para entregas concluídas
                   if (_selectedStatus == 'Entregue')
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Foto de Comprovante:',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        const SizedBox(height: 8),
-                        
-                        // Area de foto
-                        Container(
-                            height: 200,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(8),
+  Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text(
+        'Foto de Comprovante:',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'Uma foto é obrigatória para confirmar a entrega.',
+        style: TextStyle(fontSize: 14, color: Colors.grey),
+      ),
+      const SizedBox(height: 8),
+      
+      // Área de foto
+      Container(
+        height: 200,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: _photoPath != null
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                // Exibir a imagem capturada
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(7),
+                  child: Image.file(
+                    File(_photoPath!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Erro ao carregar imagem: $error',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.grey),
                             ),
-                            child: _photoPath != null
-                              ? Stack(
-                                  fit: StackFit.expand,
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                // Botão para remover foto
+                Positioned(
+                  top: 5,
+                  right: 5,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          _photoPath = null;
+                          _photoLocation = null;
+                          _photoAddress = null;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                // Indicador de sucesso
+                            Positioned(
+                              bottom: 10,
+                              left: 10,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.8),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // Exibir a imagem capturada
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(7),
-                                      child: Image.file(
-                                        File(_photoPath!),
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                    // Adicionar botão para remover a foto
-                                    Positioned(
-                                      top: 5,
-                                      right: 5,
-                                      child: Container(
-                                        decoration: const BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: IconButton(
-                                          icon: const Icon(Icons.close, color: Colors.red),
-                                          onPressed: () {
-                                            setState(() {
-                                              _photoPath = null;
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                    // Opcionalmente, adicionar uma sobreposição de sucesso
-                                    Positioned(
-                                      bottom: 10,
-                                      left: 10,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green.withOpacity(0.8),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: const Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.check_circle, color: Colors.white, size: 16),
-                                            SizedBox(width: 4),
-                                            Text(
-                                              'Foto capturada',
-                                              style: TextStyle(color: Colors.white, fontSize: 12),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                    const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _photoLocation != null 
+                                          ? 'Foto com localização' 
+                                          : 'Foto capturada',
+                                      style: const TextStyle(color: Colors.white, fontSize: 12),
                                     ),
                                   ],
-                                )
-                              : const Center(child: Text('Nenhuma foto capturada')),
-                          ),
-                        const SizedBox(height: 12),
-                        
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.camera_alt),
-                          label: Text(_photoPath == null ? 'Capturar Foto' : 'Capturar Novamente'),
-                          onPressed: _capturePhoto,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.camera_alt, size: 48, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text(
+                              'Nenhuma foto capturada',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Toque no botão abaixo para capturar',
+                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                  ),
+      
+      // Exibir informações de localização se disponíveis
+      if (_photoPath != null && _photoLocation != null)
+        _buildPhotoLocationInfo(),
+        
+      const SizedBox(height: 12),
+      
+      ElevatedButton.icon(
+        icon: const Icon(Icons.camera_alt),
+        label: Text(_photoPath == null ? 'Capturar Foto' : 'Capturar Novamente'),
+        onPressed: _statusChangeInProgress ? null : _capturePhoto,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+        ),
+      ),
+    ],
+  ),
                 ],
               ),
             ),
@@ -469,42 +665,47 @@ Future<void> _capturePhoto() async {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              // Botão para cancelar (voltar)
+              // Botão para cancelar
               OutlinedButton(
                 child: const Text('CANCELAR'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 ),
-                onPressed: () {
-                  // O WillPopScope acima irá tratar isso
+                onPressed: _statusChangeInProgress ? null : () {
                   Navigator.pop(context);
                 },
               ),
-              // Botão para salvar (original, movido)
+              // Botão para atualizar status
               ElevatedButton(
-                child: const Text('ATUALIZAR STATUS'),
+                child: Text(_statusChangeInProgress ? 'ATUALIZANDO...' : 'ATUALIZAR STATUS'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  backgroundColor: _statusChangeInProgress ? Colors.grey : Colors.green,
                 ),
-                onPressed: () {
-                  // Validar se precisa de foto para status "Entregue"
-                  if (_selectedStatus == 'Entregue' && _photoPath == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Captura de foto é obrigatória para entregas concluídas!'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-                  
-                  _updateDeliveryStatus();
-                },
+                onPressed: _statusChangeInProgress ? null : _updateDeliveryStatus,
               ),
             ],
           ),
         ),
       ),
     );
+  }
+  
+  // Função auxiliar para obter cor com base no status
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Pendente':
+        return Colors.orange;
+      case 'Em Trânsito':
+        return Colors.blue;
+      case 'Chegando':
+        return Colors.purple;
+      case 'Entregue':
+        return Colors.green;
+      case 'Falha na Entrega':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 }

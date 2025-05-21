@@ -50,6 +50,8 @@ dependencies:
   google_maps_flutter: ^2.5.3
   geolocator: ^10.1.0
   location: ^5.0.3
+  url_launcher: ^6.1.10
+  geocoding: ^2.1.0
   
   # Câmera e Imagens
   camera: ^0.10.5+9

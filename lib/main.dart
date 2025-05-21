@@ -1,5 +1,7 @@
 import 'package:app_mobile/firebase_options.dart';
+import 'package:app_mobile/presentation/client/history/client_history_screen.dart';
 import 'package:app_mobile/presentation/client/home/client_home_screen.dart';
+import 'package:app_mobile/presentation/driver/deliveries/completed_deliveries_screen.dart';
 import 'package:app_mobile/presentation/driver/deliveries/driver_home_screen.dart';
 import 'package:app_mobile/presentation/shared/setting/setting_screen.dart';
 import 'package:app_mobile/services/notification_service.dart';
@@ -21,6 +23,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   
   WidgetsFlutterBinding.ensureInitialized();
+  
   
  
   await Firebase.initializeApp(
@@ -158,7 +161,32 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(isMotorista ? 'Entregas Pendentes' : 'Minhas Entregas'), // ------>>> alterando aqui: título único
         automaticallyImplyLeading: false,
-        actions: [
+        actions: [ 
+          !isMotorista ?
+          IconButton(
+                  icon: const Icon(Icons.history),
+                  onPressed: () {
+
+                     Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ClientHistoryScreen(),
+                        ),
+                      );
+                  },
+                  tooltip: 'Histórico de Pedidos',
+                ):  IconButton(
+                  icon: const Icon(Icons.history),
+                  tooltip: 'Entregas Concluídas',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CompletedDeliveriesScreen(),
+                      ),
+                    );
+                  },
+                ), 
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {

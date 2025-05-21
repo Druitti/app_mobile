@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app_mobile/common/model/delivery.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
+import 'package:app_mobile/services/database_service.dart';
 
 class CompletedDeliveriesScreen extends StatefulWidget {
   const CompletedDeliveriesScreen({Key? key}) : super(key: key);
@@ -11,37 +12,321 @@ class CompletedDeliveriesScreen extends StatefulWidget {
 }
 
 class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
-  // Exemplo de dados de entregas concluídas
-  final List<Delivery> _completedDeliveries = [
-    Delivery(
-      id: 'delivery_999',
-      description: 'Pacote Grande - Móveis',
-      status: 'Entregue',
-      clientName: 'Cliente Feliz',
-      deliveryAddress: 'Rua da Paz, 789, Bairro Tranquilo',
-      timestamp: DateTime.now().subtract(const Duration(days: 1)),
-      photoPath: '/path/to/photo1.jpg', // Exemplo
-      latitude: -23.5600,
-      longitude: -46.6400,
-    ),
-    Delivery(
-      id: 'delivery_888',
-      description: 'Envelope - Contrato Importante',
-      status: 'Entregue',
-      clientName: 'Advocacia Legal',
-      deliveryAddress: 'Avenida Jurídica, 101, Centro Cívico',
-      timestamp: DateTime.now().subtract(const Duration(hours: 5)),
-      photoPath: '/path/to/photo2.jpg', // Exemplo
-      latitude: -23.5550,
-      longitude: -46.6350,
-    ),
-  ];
+  final DatabaseService _databaseService = DatabaseService();
+  List<Delivery> _completedDeliveries = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  
+  // Filtro de período
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
     super.initState();
-    // Inicializar carregamento de entregas concluídas com o BLoC
-    // _driverBloc.add(LoadCompletedDeliveriesEvent());
+    _loadCompletedDeliveries();
+  }
+
+  // Carrega as entregas concluídas do banco de dados
+  Future<void> _loadCompletedDeliveries() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Obtém stream de entregas concluídas
+      // Para uso real, o código abaixo precisa ser adaptado para a estrutura específica do seu aplicativo
+      // Usando um snapshot de stream para obter os dados
+      final stream = _databaseService.getCompletedDeliveries();
+      stream.listen((deliveries) {
+        if (mounted) {
+          setState(() {
+            _completedDeliveries = deliveries;
+            _isLoading = false;
+          });
+        }
+      }, onError: (error) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Erro ao carregar entregas: $error';
+            _isLoading = false;
+          });
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Erro ao carregar entregas: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Função para filtrar entregas por período
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Filtrar por período'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    title: const Text('Data inicial'),
+                    subtitle: Text(_startDate == null
+                        ? 'Não definida'
+                        : '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _startDate ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _startDate = picked;
+                        });
+                      }
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('Data final'),
+                    subtitle: Text(_endDate == null
+                        ? 'Não definida'
+                        : '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _endDate ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now().add(const Duration(days: 1)),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _endDate = picked;
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Limpar Filtros'),
+                  onPressed: () {
+                    this.setState(() {
+                      _startDate = null;
+                      _endDate = null;
+                    });
+                    Navigator.of(context).pop();
+                    _loadCompletedDeliveries();
+                  },
+                ),
+                TextButton(
+                  child: const Text('Aplicar'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _applyFilters();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Aplica os filtros selecionados
+  void _applyFilters() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Em um cenário real, idealmente você teria um método específico no DatabaseService
+      // para filtrar entregas por data. Como alternativa, podemos filtrar em memória:
+      
+      final stream = _databaseService.getCompletedDeliveries();
+      stream.listen((deliveries) {
+        if (mounted) {
+          // Filtra as entregas baseado nas datas selecionadas
+          final filteredDeliveries = deliveries.where((delivery) {
+            // Converte para o início do dia para a data inicial
+            final deliveryDate = delivery.timestamp;
+            
+            bool matchesStart = true;
+            bool matchesEnd = true;
+            
+            if (_startDate != null) {
+              final start = DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
+              matchesStart = deliveryDate.isAfter(start) || deliveryDate.isAtSameMomentAs(start);
+            }
+            
+            if (_endDate != null) {
+              // Usar o final do dia para a data final
+              final end = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+              matchesEnd = deliveryDate.isBefore(end) || deliveryDate.isAtSameMomentAs(end);
+            }
+            
+            return matchesStart && matchesEnd;
+          }).toList();
+          
+          setState(() {
+            _completedDeliveries = filteredDeliveries;
+            _isLoading = false;
+          });
+        }
+      }, onError: (error) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Erro ao filtrar entregas: $error';
+            _isLoading = false;
+          });
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Erro ao filtrar entregas: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Exibe detalhes completos da entrega
+  void _showDeliveryDetails(Delivery delivery) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          maxChildSize: 0.9,
+          minChildSize: 0.3,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              padding: const EdgeInsets.all(16.0),
+              child: ListView(
+                controller: scrollController,
+                children: [
+                  Center(
+                    child: Text(
+                      'Entrega ${delivery.id}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildDetailRow(Icons.description, 'Descrição', delivery.description),
+                  _buildDetailRow(Icons.person, 'Cliente', delivery.clientName),
+                  _buildDetailRow(Icons.location_on, 'Endereço', delivery.deliveryAddress),
+                  _buildDetailRow(Icons.calendar_today, 'Data', 
+                      '${delivery.timestamp.day}/${delivery.timestamp.month}/${delivery.timestamp.year} - ${delivery.timestamp.hour}:${delivery.timestamp.minute.toString().padLeft(2, '0')}'),
+                  
+                  if (delivery.photoPath != null && delivery.photoPath!.isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        const Text('Comprovante de Entrega:', 
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8.0),
+                          child: Image.asset(
+                            delivery.photoPath!,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                height: 200,
+                                color: Colors.grey[300],
+                                child: const Center(
+                                  child: Text('Imagem não disponível'),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                  if (delivery.latitude != null && delivery.longitude != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        const Text('Localização da Entrega:', 
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 200,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Mapa: ${delivery.latitude}, ${delivery.longitude}',
+                              style: const TextStyle(color: Colors.black54),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Fechar'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Constrói uma linha de detalhes
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: Colors.grey[700]),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -49,81 +334,179 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Entregas Concluídas'),
-           actions: [
-        // Botão de filtro
-        IconButton(
-          icon: const Icon(Icons.filter_list),
-          tooltip: 'Filtrar',
-          onPressed: () {
-            // Implementação similar ao filtro do histórico de cliente
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Filtrar entregas (a implementar)')),
-            );
-          },
-        ),
-      ],
+        actions: [
+          // Botão de filtro
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            tooltip: 'Filtrar por período',
+            onPressed: _showFilterDialog,
+          ),
+          // Botão de atualizar
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Atualizar lista',
+            onPressed: _loadCompletedDeliveries,
+          ),
+        ],
       ),
-      
-      body: _buildCompletedDeliveriesList(),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildCompletedDeliveriesList() {
-    if (_completedDeliveries.isEmpty) {
-      return const Center(child: Text('Nenhuma entrega concluída encontrada.'));
+  Widget _buildBody() {
+    // Mostra indicador de carregamento
+    if (_isLoading) {
+      return const Center(child: LoadingIndicator());
     }
-
-    return ListView.builder(
-      itemCount: _completedDeliveries.length,
-      itemBuilder: (context, index) {
-        final delivery = _completedDeliveries[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: ListTile(
-            leading: const Icon(Icons.check_circle, color: Colors.green),
-            title: Text(delivery.description),
-            subtitle: Text('Cliente: ${delivery.clientName}\n' +
-                'Endereço: ${delivery.deliveryAddress}\n' +
-                'Concluída em: ${delivery.timestamp.toString().substring(0, 16)}'),
-            isThreeLine: true,
-            onTap: () {
-              // Mostrar detalhes da entrega concluída em um diálogo
-              showDialog(
-                context: context,
-                builder: (BuildContext context) {
-                  return AlertDialog(
-                    title: Text('Entrega ${delivery.id}'),
-                    content: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Cliente: ${delivery.clientName}'),
-                          Text('Descrição: ${delivery.description}'),
-                          Text('Endereço: ${delivery.deliveryAddress}'),
-                          Text('Concluída em: ${delivery.timestamp.toString().substring(0, 16)}'),
-                          if (delivery.photoPath != null) 
-                            const Text('\nFoto da entrega disponível'),
-                          if (delivery.latitude != null && delivery.longitude != null)
-                            Text('\nLocalização: ${delivery.latitude}, ${delivery.longitude}'),
-                        ],
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        child: const Text('Fechar'),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                    ],
-                  );
+    
+    // Mostra mensagem de erro se houver
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadCompletedDeliveries,
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // Mostra mensagem se não houver entregas
+    if (_completedDeliveries.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('Nenhuma entrega concluída encontrada',
+                style: TextStyle(fontSize: 16)),
+            const SizedBox(height: 8),
+            if (_startDate != null || _endDate != null)
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _startDate = null;
+                    _endDate = null;
+                  });
+                  _loadCompletedDeliveries();
                 },
-              );
-            },
-          ),
-        );
-      },
+                child: const Text('Limpar filtros'),
+              ),
+          ],
+        ),
+      );
+    }
+    
+    // Mostra lista de entregas concluídas
+    return RefreshIndicator(
+      onRefresh: _loadCompletedDeliveries,
+      child: ListView.builder(
+        itemCount: _completedDeliveries.length,
+        padding: const EdgeInsets.all(16.0),
+        itemBuilder: (context, index) {
+          final delivery = _completedDeliveries[index];
+          return Card(
+            elevation: 2,
+            margin: const EdgeInsets.only(bottom: 16.0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.0),
+            ),
+            child: InkWell(
+              onTap: () => _showDeliveryDetails(delivery),
+              borderRadius: BorderRadius.circular(12.0),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const CircleAvatar(
+                          backgroundColor: Colors.green,
+                          radius: 20,
+                          child: Icon(Icons.check, color: Colors.white),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                delivery.description,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Cliente: ${delivery.clientName}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Icon(Icons.location_on_outlined, 
+                                  size: 16, color: Colors.grey[700]),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  delivery.deliveryAddress,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[700],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_today, 
+                                size: 16, color: Colors.grey[700]),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${delivery.timestamp.day}/${delivery.timestamp.month}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

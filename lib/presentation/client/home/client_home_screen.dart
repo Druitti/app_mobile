@@ -1,5 +1,6 @@
 // lib/presentation/client/home/client_home_screen.dart
 import 'package:app_mobile/app.dart';
+import 'package:app_mobile/common/widgets/map_location_pick.dart';
 import 'package:app_mobile/debug/database_service_debug.dart';
 import 'package:app_mobile/main.dart';
 import 'package:app_mobile/presentation/client/history/client_history_screen.dart';
@@ -10,10 +11,12 @@ import 'package:app_mobile/common/widgets/loading_indicator.dart';
 import 'package:app_mobile/common/model/order.dart';
 import 'package:app_mobile/services/database_service.dart';
 import 'package:app_mobile/common/model/delivery.dart';
-import 'dart:math'; 
+import 'dart:math';
+
+import 'package:google_maps_flutter/google_maps_flutter.dart'; 
 
 class ClientHomeScreen extends StatefulWidget {
-  final bool showAppBar; // ------>>> alterando aqui: adicionando parâmetro para controlar exibição da AppBar
+  final bool showAppBar; 
 
   const ClientHomeScreen({Key? key, this.showAppBar = true}) : super(key: key);
 
@@ -24,25 +27,11 @@ class ClientHomeScreen extends StatefulWidget {
 
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
   // Exemplo de dados para demonstração
-  final List<Order> _activeOrders = [
-    Order(
-      id: 'order_123',
-      description: 'Pacote Eletrônicos',
-      status: 'Em Trânsito',
-      estimatedDelivery: DateTime.now().add(const Duration(hours: 2)),
-      driverName: 'João Silva',
-    ),
-    Order(
-      id: 'order_456',
-      description: 'Documento Urgente',
-      status: 'Preparando',
-      estimatedDelivery: DateTime.now().add(const Duration(hours: 1)),
-      driverName: 'Maria Oliveira',
-    ),
-  ];
+  final List<Order> _activeOrders =[] ;
   final DatabaseService _databaseService = DatabaseService();
   bool _isLoading = false;
-  
+  final PushNotificationService _notificationService = PushNotificationService();
+  // final Future<bool> Function(String description, String address, [LatLng? coordinates]) onSave;
   // Método para carregar entregas do banco de dados
   Future<void> _loadOrders() async {
     setState(() {
@@ -54,22 +43,27 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       final entregasDb = await _databaseService.listarEntregas();
       
       // Se não houver entregas no banco, mantenha os dados de exemplo
-      if (entregasDb.isNotEmpty) {
-        final List<Order> ordersFromDb = entregasDb.map((map) {
-          // Converter do formato do banco para Order
-          return Order(
-            id: map['codigo'] ?? map['id'].toString(),
-            description: map['descricao'] ?? 'Entrega #${map['id']}',
-            status: map['status'] ?? 'Pendente',
-            estimatedDelivery: DateTime.parse(map['data_atualizacao'] ?? DateTime.now().toIso8601String()),
-            driverName: 'Motorista Designado',
-          );
-        }).toList();
+   // Se não houver entregas no banco, mantenha os dados de exemplo
+    if (entregasDb.isNotEmpty) {
+      final List<Order> ordersFromDb = entregasDb
+          .where((map) => map['status']?.toLowerCase() != 'entregue') // Filtra os que não são 'Entregue'
+          .map((map) {
+            // Converter do formato do banco para Order
+            return Order(
+              id: map['codigo'] ?? map['id'].toString(),
+              description: map['descricao'] ?? 'Entrega #${map['id']}',
+              status: map['status'] ?? 'Pendente',
+              estimatedDelivery: DateTime.parse(map['data_atualizacao'] ?? DateTime.now().toIso8601String()),
+              driverName: 'Motorista Designado',
+            );
+          }).toList();
+
+
         
         setState(() {
           // Se tiver dados no banco, substitua os dados de exemplo
           if (ordersFromDb.isNotEmpty) {
-            _activeOrders.clear();
+          
             _activeOrders.addAll(ordersFromDb);
           }
         });
@@ -88,28 +82,29 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
   
   // Método para criar uma nova entrega
-  Future<void> _createNewOrder() async {
-    // Abrir diálogo para criar nova entrega
+Future<void> _createNewOrder() async {
+    // Abrir diálogo para criar nova entrega com seleção de mapa
     final bool? result = await showDialog<bool>(
       context: context,
       builder: (context) => CreateOrderDialog(
-        onSave: _saveNewOrder,
+        onSave: (description, address, [coordinates]) {
+          // Chama o método _saveNewOrder passando os parâmetros corretamente
+          return _saveNewOrder(description, address, coordinates);
+        },
       ),
-    );
-    
-    // Se diálogo concluído com sucesso (resultado true), recarregar entregas
-    if (result == true) {
-      await _loadOrders();
-    }
-  }
+    );}
   
-  // Método para salvar nova entrega no banco de dados
-  Future<bool> _saveNewOrder(String description, String address) async {
+  // Método atualizado para salvar nova entrega no banco de dados com coordenadas
+  Future<bool> _saveNewOrder(
+    String description, 
+    String address, 
+    LatLng? coordinates
+  ) async {
     try {
       // Criar um ID único para a entrega
       final String orderId = 'order_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000)}';
       
-      // Preparar dados para o banco
+      // Preparar dados para o banco incluindo coordenadas de localização
       final Map<String, dynamic> newOrder = {
         'codigo': orderId,
         'descricao': description,
@@ -118,13 +113,17 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         'data_atualizacao': DateTime.now().toIso8601String(),
         'endereco': address,
         'observacoes': 'Criado pelo cliente',
+        'latitude': coordinates?.latitude,
+        'longitude': coordinates?.longitude,
       };
-      await PushNotificationService().notifyOrderStatusChange(
-      orderId: orderId,
-      status: 'Pendente',
-      titulo: 'Nova Entrega Criada',
-      mensagem: 'Um novo pedido #$orderId foi criado e está aguardando processamento.',
-    );
+      
+      // Notificar sobre a nova entrega
+      await _notificationService.notifyOrderStatusChange(
+        orderId: orderId,
+        status: 'Pendente',
+        titulo: 'Nova Entrega Criada',
+        mensagem: 'Um novo pedido #$orderId foi criado e está aguardando processamento.',
+      );
       
       // Inserir no banco de dados
       final int result = await _databaseService.inserirEntrega(newOrder);
@@ -132,23 +131,37 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       // Verificar se inserção foi bem-sucedida
       if (result > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Entrega criada com sucesso!')),
+          const SnackBar(
+            content: Text('Entrega criada com sucesso!'), 
+            backgroundColor: Colors.green,
+          ),
         );
         return true;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erro ao criar entrega'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Erro ao criar entrega'), 
+            backgroundColor: Colors.red,
+          ),
         );
         return false;
       }
     } catch (e) {
       print('Erro ao salvar nova entrega: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao criar entrega: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Erro ao criar entrega: $e'), 
+          backgroundColor: Colors.red,
+        ),
       );
       return false;
     }
   }
+  
+  
+  // Método para salvar nova entrega no banco de dados
+ 
+  
   
   // Método para excluir uma entrega
   Future<void> _deleteOrder(String orderId) async {
@@ -255,7 +268,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                         const SnackBar(content: Text('Ajuda (a implementar)')),
                       );
                     } else if (value == 'logout') {
-                      showDialog(
+                      showDialog( 
                         context: context,
                         builder: (context) => AlertDialog(
                           title: const Text('Sair'),
@@ -382,9 +395,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
 }
 class CreateOrderDialog extends StatefulWidget {
-  final Future<bool> Function(String description, String address) onSave;
-
-  const CreateOrderDialog({Key? key, required this.onSave}) : super(key: key);
+  final Future<bool> Function(String description, String address, LatLng? coordinates) onSave;
+  
+  const CreateOrderDialog({
+    Key? key,
+    required this.onSave,
+  }) : super(key: key);
 
   @override
   State<CreateOrderDialog> createState() => _CreateOrderDialogState();
@@ -394,44 +410,67 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
+  
   bool _isLoading = false;
-
+  LatLng? _selectedLocation;
+  
   @override
   void dispose() {
     _descriptionController.dispose();
     _addressController.dispose();
     super.dispose();
   }
-
-  Future<void> _submit() async {
-    // Validar formulário
-    if (_formKey.currentState?.validate() != true) {
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    // Chamar função de salvamento
-    final success = await widget.onSave(
-      _descriptionController.text,
-      _addressController.text,
+  
+  Future<void> _openMapPicker() async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MapLocationPicker(
+          initialLocation: _selectedLocation,
+          onLocationSelected: (location, address) {
+            setState(() {
+              _selectedLocation = location;
+              _addressController.text = address;
+            });
+          },
+        ),
+      ),
     );
-
-    // Se ainda montado, atualizar estado
-    if (mounted) {
+    
+    // Se o resultado for não nulo, significa que uma localização foi selecionada
+    if (result != null) {
       setState(() {
-        _isLoading = false;
+        final locationData = result as Map<String, dynamic>;
+        _selectedLocation = locationData['location'] as LatLng;
+        _addressController.text = locationData['address'] as String;
       });
-
-      // Fechar diálogo com resultado
-      if (success) {
-        Navigator.pop(context, true);
+    }
+  }
+  
+  Future<void> _saveOrder() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
+      
+      try {
+        final result = await widget.onSave(
+          _descriptionController.text.trim(),
+          _addressController.text.trim(),
+          _selectedLocation,
+        );
+        
+        if (result) {
+          Navigator.of(context).pop(true); // Retorna true para indicar sucesso
+        } else {
+          setState(() => _isLoading = false);
+        }
+      } catch (e) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao salvar: $e')),
+        );
       }
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -441,52 +480,77 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
-                  labelText: 'Descrição',
-                  hintText: 'Ex: Pacote de Eletrônicos',
+                  labelText: 'Descrição da Entrega',
+                  hintText: 'Ex: Pacote de Roupas',
+                  border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Por favor, informe uma descrição';
+                    return 'Descrição é obrigatória';
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'Endereço de Entrega',
-                  hintText: 'Ex: Av. Paulista, 1000 - São Paulo',
+              InkWell(
+                onTap: _openMapPicker,
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Endereço de Entrega',
+                    hintText: 'Selecione no mapa',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.map),
+                      onPressed: _openMapPicker,
+                    ),
+                  ),
+                  child: Text(
+                    _addressController.text.isEmpty
+                        ? 'Toque para selecionar no mapa'
+                        : _addressController.text,
+                    style: _addressController.text.isEmpty
+                        ? TextStyle(color: Colors.grey[600])
+                        : null,
+                  ),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Por favor, informe um endereço';
-                  }
-                  return null;
-                },
               ),
+              if (_selectedLocation != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, size: 16, color: Colors.green),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Localização selecionada: ${_selectedLocation!.latitude.toStringAsFixed(5)}, ${_selectedLocation!.longitude.toStringAsFixed(5)}',
+                        style: const TextStyle(fontSize: 12, color: Colors.green),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context, false),
+          onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
           child: const Text('Cancelar'),
         ),
         ElevatedButton(
-          onPressed: _isLoading ? null : _submit,
+          onPressed: _isLoading ? null : _saveOrder,
           child: _isLoading
               ? const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
                   ),
                 )
               : const Text('Salvar'),
