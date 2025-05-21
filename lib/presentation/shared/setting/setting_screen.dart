@@ -1,4 +1,5 @@
 import 'package:app_mobile/common/utils/constants.dart';
+import 'package:app_mobile/debug/database_service_debug.dart';
 import 'package:app_mobile/main.dart';
 import 'package:app_mobile/services/database_service.dart';
 import 'package:flutter/material.dart';
@@ -240,6 +241,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           
           // Logout
           const Divider(),
+         
+          
           
           ListTile(
             title: const Text('Sair do Aplicativo'),
@@ -267,6 +270,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
+          const Divider(),
+           ListTile(
+        title: const Text('Diagnóstico do Banco de Dados'),
+        subtitle: const Text('Ferramentas para desenvolvedores'),
+        leading: const Icon(Icons.storage),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const DatabaseDiagnosticScreen()),
+          );
+        },
+      ),
         ],
       ),
     );

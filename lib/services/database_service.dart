@@ -1,3 +1,4 @@
+import 'package:app_mobile/services/notification_service.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -24,48 +25,276 @@ class DatabaseService {
     );
   }
 
+ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Verificar se a coluna descricao já existe
+      var tableInfo = await db.rawQuery("PRAGMA table_info(entregas)");
+      bool hasDescricao = false;
+      
+      for (var column in tableInfo) {
+        if (column['name'] == 'descricao') {
+          hasDescricao = true;
+          break;
+        }
+      }
+      
+      // Adicionar a coluna apenas se ela não existir
+      if (!hasDescricao) {
+        try {
+          await db.execute('ALTER TABLE entregas ADD COLUMN descricao TEXT');
+          print("Coluna 'descricao' adicionada com sucesso");
+        } catch (e) {
+          print("Erro ao adicionar coluna 'descricao': $e");
+        }
+      }
+    }
+  }
+
   Future<void> _onCreate(Database db, int version) async {
-  // Tabela de Entregas
-  await db.execute('''
-    CREATE TABLE entregas(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      codigo TEXT NOT NULL,
-      status TEXT NOT NULL,
-      data_criacao TEXT NOT NULL,
-      data_atualizacao TEXT NOT NULL,
-      latitude REAL,
-      longitude REAL,
-      foto_assinatura TEXT,
-      observacoes TEXT
-    )
-  ''');
+    // Tabela de Entregas
+    await db.execute('''
+      CREATE TABLE entregas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT,
+        descricao TEXT,
+        status TEXT,
+        data_criacao TEXT,
+        data_atualizacao TEXT,
+        latitude REAL,
+        longitude REAL,
+        foto_assinatura TEXT,
+        observacoes TEXT,
+        endereco TEXT
+      )
+    ''');
 
-  // Tabela de Histórico de Entregas (adicionado)
-  await db.execute('''
-    CREATE TABLE historico_entregas(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      entrega_id INTEGER,
-      status_anterior TEXT,
-      status_novo TEXT,
-      data_mudanca TEXT NOT NULL,
-      FOREIGN KEY (entrega_id) REFERENCES entregas (id)
-    )
-  ''');
+    // Tabela de Histórico de Entregas (adicionado)
+    await db.execute('''
+      CREATE TABLE historico_entregas(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entrega_id INTEGER,
+        status_anterior TEXT,
+        status_novo TEXT,
+        data_mudanca TEXT NOT NULL,
+        FOREIGN KEY (entrega_id) REFERENCES entregas (id)
+      )
+    ''');
 
-  // Tabela de Configurações
-  await db.execute('''
-    CREATE TABLE configuracoes(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chave TEXT NOT NULL UNIQUE,
-      valor TEXT NOT NULL
-    )
-  ''');
+    // Tabela de Configurações
+    await db.execute('''
+      CREATE TABLE configuracoes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chave TEXT NOT NULL UNIQUE,
+        valor TEXT NOT NULL
+      )
+    ''');
+  }
+  Future<void> diagnosticarBancoDados() async {
+  try {
+    final db = await database;
+    print("\n======= DIAGNÓSTICO DO BANCO DE DADOS =======");
+    
+    // Verificar quais tabelas existem
+    var tables = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'");
+    print("Tabelas existentes: ${tables.map((t) => t['name']).toList()}");
+    
+    // Se a tabela entregas existir, verificar sua estrutura
+    if (tables.any((t) => t['name'] == 'entregas')) {
+      var colunas = await db.rawQuery("PRAGMA table_info(entregas)");
+      print("\nColunas da tabela entregas:");
+      colunas.forEach((col) => print("${col['cid']}: ${col['name']} (${col['type']})"));
+      
+      // Verificar especificamente se a coluna 'descricao' existe
+      bool temDescricao = colunas.any((col) => col['name'] == 'descricao');
+      print("\nColuna 'descricao' existe? $temDescricao");
+    }
+    
+    print("======= FIM DO DIAGNÓSTICO =======\n");
+  } catch (e) {
+    print("Erro durante o diagnóstico: $e");
+  }
 }
+
+// Para corrigir o banco de dados adicionando a coluna faltante
+Future<void> corrigirBancoDados() async {
+  try {
+    final db = await database;
+    print("\n======= TENTANDO CORRIGIR O BANCO DE DADOS =======");
+    
+    // Verificar se a tabela entregas existe
+    var tables = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='entregas'");
+    if (tables.isEmpty) {
+      print("Tabela entregas não encontrada! Criando tabela...");
+      await _onCreate(db, 1);
+      print("Tabela entregas criada com sucesso!");
+      return;
+    }
+    
+    // Verificar se a coluna descricao já existe
+    var colunas = await db.rawQuery("PRAGMA table_info(entregas)");
+    bool temDescricao = colunas.any((col) => col['name'] == 'descricao');
+    
+    if (!temDescricao) {
+      print("Coluna 'descricao' não existe. Adicionando...");
+      try {
+        await db.execute('ALTER TABLE entregas ADD COLUMN descricao TEXT');
+        print("Coluna 'descricao' adicionada com sucesso!");
+      } catch (e) {
+        print("Erro ao adicionar coluna: $e");
+      }
+    } else {
+      print("Coluna 'descricao' já existe. Não é necessário corrigir.");
+    }
+    
+    print("======= FIM DA CORREÇÃO =======\n");
+  } catch (e) {
+    print("Erro durante a correção: $e");
+  }
+}
+
+// Para recriar o banco de dados do zero (cuidado: perde todos os dados)
+Future<void> recriaBancoDados() async {
+  try {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+    
+    String path = join(await getDatabasesPath(), 'entregas.db');
+    print("Apagando banco de dados em: $path");
+    await deleteDatabase(path);
+    print("Banco de dados apagado com sucesso!");
+    
+    // Força a recriação do banco ao acessá-lo novamente
+    await database;
+    print("Banco de dados recriado com sucesso!");
+  } catch (e) {
+    print("Erro ao recriar banco de dados: $e");
+  }
+}
+
+  // O restante do seu código permanece igual...
   // Métodos para Entregas
   Future<int> inserirEntrega(Map<String, dynamic> entrega) async {
     final db = await database;
-    return await db.insert('entregas', entrega);
+    
+    // Garantir que todos os campos obrigatórios estejam presentes
+    final Map<String, dynamic> entregaCompleta = {
+      'codigo': entrega['codigo'] ?? 'ENT_${DateTime.now().millisecondsSinceEpoch}',
+      'descricao': entrega['descricao'] ?? entrega['description'] ?? 'Nova Entrega',
+      'status': entrega['status'] ?? 'Pendente',
+      'data_criacao': entrega['data_criacao'] ?? DateTime.now().toIso8601String(),
+      'data_atualizacao': entrega['data_atualizacao'] ?? DateTime.now().toIso8601String(),
+      'latitude': entrega['latitude'],
+      'longitude': entrega['longitude'],
+      'foto_assinatura': entrega['foto_assinatura'] ?? entrega['photoPath'],
+      'observacoes': entrega['observacoes'] ?? '',
+      'endereco': entrega['endereco'] ?? entrega['deliveryAddress'] ?? 'Endereço não especificado',
+    };
+    
+    return await db.insert('entregas', entregaCompleta);
   }
+
+// Método para atualizar uma entrega existente
+Future<int> atualizarEntrega(String codigo, Map<String, dynamic> novosDados) async {
+  final db = await database;
+  
+  // Buscar entrega existente
+  final List<Map<String, dynamic>> entregas = await db.query(
+    'entregas',
+    where: 'codigo = ?',
+    whereArgs: [codigo],
+    limit: 1,
+  );
+  
+  if (entregas.isEmpty) {
+    // Entrega não encontrada
+    return 0;
+  }
+  
+  // ID da entrega no banco
+  final int id = entregas.first['id'];
+  
+  // Atualizar data de atualização
+  novosDados['data_atualizacao'] = DateTime.now().toIso8601String();
+  
+  // Se estiver alterando o status, registrar no histórico
+  final String statusAtual = entregas.first['status'];
+  final String? novoStatus = novosDados['status'];
+  
+  if (novoStatus != null && novoStatus != statusAtual) {
+    // Registrar mudança de status no histórico
+    await db.insert('historico_entregas', {
+      'entrega_id': id,
+      'status_anterior': statusAtual,
+      'status_novo': novoStatus,
+      'data_mudanca': DateTime.now().toIso8601String(),
+    });
+     await PushNotificationService().notifyOrderStatusChange(
+      orderId: codigo,
+      status: novoStatus,
+    );
+  }
+  
+  
+  // Atualizar entrega
+  return await db.update(
+    'entregas',
+    novosDados,
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
+
+// Método para listar entregas com formatação para o app 
+Future<List<Map<String, dynamic>>> listarEntregasParaApp() async {
+  final db = await database;
+  final List<Map<String, dynamic>> entregas = await db.query('entregas', orderBy: 'data_criacao DESC');
+  
+  // Converter para formato esperado pelo app
+  return entregas.map((entrega) {
+    return {
+      'id': entrega['codigo'],
+      'description': entrega['descricao'] ?? 'Entrega #${entrega['codigo']}',
+      'status': entrega['status'],
+      'estimatedDelivery': entrega['data_atualizacao'],
+      'driverName': 'Motorista Designado', // Poderíamos buscar o motorista no banco futuro
+      'deliveryAddress': entrega['endereco'],
+      'latitude': entrega['latitude'],
+      'longitude': entrega['longitude'],
+      'photoPath': entrega['foto_assinatura'],
+      'timestamp': entrega['data_criacao'],
+      'observacoes': entrega['observacoes'],
+    };
+  }).toList();
+}
+
+// Método para buscar o histórico completo de uma entrega
+Future<List<Map<String, dynamic>>> buscarHistoricoEntrega(String codigo) async {
+  final db = await database;
+  
+  // Primeiro buscar a entrega para obter o ID
+  final List<Map<String, dynamic>> entregas = await db.query(
+    'entregas',
+    where: 'codigo = ?',
+    whereArgs: [codigo],
+    limit: 1,
+  );
+  
+  if (entregas.isEmpty) {
+    return [];
+  }
+  
+  final int entregaId = entregas.first['id'];
+  
+  // Buscar histórico relacionado à entrega
+  return await db.query(
+    'historico_entregas',
+    where: 'entrega_id = ?',
+    whereArgs: [entregaId],
+    orderBy: 'data_mudanca DESC',
+  );
+}
 
   Future<List<Map<String, dynamic>>> listarEntregas() async {
     final db = await database;
@@ -164,14 +393,34 @@ Map<String, dynamic> _dadosSimulados(String id) {
   }
 
 
-  Future<int> deletarEntrega(int id) async {
-    final db = await database;
-    return await db.delete(
-      'entregas',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+ Future<int> deletarEntrega(String codigo) async {
+  final db = await database;
+  
+  // Primeiro buscar o ID interno da entrega pelo código
+  final List<Map<String, dynamic>> entregas = await db.query(
+    'entregas',
+    columns: ['id'],
+    where: 'codigo = ?',
+    whereArgs: [codigo],
+    limit: 1,
+  );
+  
+  // Se não encontrar a entrega, retorna 0 (nenhuma linha afetada)
+  if (entregas.isEmpty) {
+    print('Entrega com código $codigo não encontrada');
+    return 0;
   }
+  
+  // Pega o ID interno
+  final int id = entregas.first['id'];
+  
+  // Agora exclui usando o ID interno
+  return await db.delete(
+    'entregas',
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
 
   // Métodos para Configurações
   Future<void> salvarConfiguracao(String chave, String valor) async {

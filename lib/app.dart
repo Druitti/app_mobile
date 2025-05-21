@@ -34,8 +34,8 @@ void main() async {
   
   // Inicializar serviço de notificações
   try {
-    final pushService = NotificationService();
-    await pushService.initialize(navKey: navigatorKey);
+    final pushService = PushNotificationService();
+    await pushService.initialize();
     print('Serviço de notificações inicializado com sucesso');
     
     // Configurar manipulador de mensagens em background

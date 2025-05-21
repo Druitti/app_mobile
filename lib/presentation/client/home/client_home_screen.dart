@@ -1,9 +1,16 @@
 // lib/presentation/client/home/client_home_screen.dart
 import 'package:app_mobile/app.dart';
+import 'package:app_mobile/debug/database_service_debug.dart';
+import 'package:app_mobile/main.dart';
+import 'package:app_mobile/presentation/client/history/client_history_screen.dart';
 import 'package:app_mobile/presentation/client/tracking/client_tracking_screen.dart';
+import 'package:app_mobile/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
 import 'package:app_mobile/common/model/order.dart';
+import 'package:app_mobile/services/database_service.dart';
+import 'package:app_mobile/common/model/delivery.dart';
+import 'dart:math'; 
 
 class ClientHomeScreen extends StatefulWidget {
   final bool showAppBar; // ------>>> alterando aqui: adicionando parâmetro para controlar exibição da AppBar
@@ -13,6 +20,7 @@ class ClientHomeScreen extends StatefulWidget {
   @override
   State<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
+
 
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
   // Exemplo de dados para demonstração
@@ -32,31 +40,209 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       driverName: 'Maria Oliveira',
     ),
   ];
-
+  final DatabaseService _databaseService = DatabaseService();
+  bool _isLoading = false;
+  
+  // Método para carregar entregas do banco de dados
+  Future<void> _loadOrders() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // Buscar entregas do banco de dados
+      final entregasDb = await _databaseService.listarEntregas();
+      
+      // Se não houver entregas no banco, mantenha os dados de exemplo
+      if (entregasDb.isNotEmpty) {
+        final List<Order> ordersFromDb = entregasDb.map((map) {
+          // Converter do formato do banco para Order
+          return Order(
+            id: map['codigo'] ?? map['id'].toString(),
+            description: map['descricao'] ?? 'Entrega #${map['id']}',
+            status: map['status'] ?? 'Pendente',
+            estimatedDelivery: DateTime.parse(map['data_atualizacao'] ?? DateTime.now().toIso8601String()),
+            driverName: 'Motorista Designado',
+          );
+        }).toList();
+        
+        setState(() {
+          // Se tiver dados no banco, substitua os dados de exemplo
+          if (ordersFromDb.isNotEmpty) {
+            _activeOrders.clear();
+            _activeOrders.addAll(ordersFromDb);
+          }
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar entregas: $e');
+      // Tratar erro (opcional)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar entregas: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+  
+  // Método para criar uma nova entrega
+  Future<void> _createNewOrder() async {
+    // Abrir diálogo para criar nova entrega
+    final bool? result = await showDialog<bool>(
+      context: context,
+      builder: (context) => CreateOrderDialog(
+        onSave: _saveNewOrder,
+      ),
+    );
+    
+    // Se diálogo concluído com sucesso (resultado true), recarregar entregas
+    if (result == true) {
+      await _loadOrders();
+    }
+  }
+  
+  // Método para salvar nova entrega no banco de dados
+  Future<bool> _saveNewOrder(String description, String address) async {
+    try {
+      // Criar um ID único para a entrega
+      final String orderId = 'order_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000)}';
+      
+      // Preparar dados para o banco
+      final Map<String, dynamic> newOrder = {
+        'codigo': orderId,
+        'descricao': description,
+        'status': 'Pendente',
+        'data_criacao': DateTime.now().toIso8601String(),
+        'data_atualizacao': DateTime.now().toIso8601String(),
+        'endereco': address,
+        'observacoes': 'Criado pelo cliente',
+      };
+      await PushNotificationService().notifyOrderStatusChange(
+      orderId: orderId,
+      status: 'Pendente',
+      titulo: 'Nova Entrega Criada',
+      mensagem: 'Um novo pedido #$orderId foi criado e está aguardando processamento.',
+    );
+      
+      // Inserir no banco de dados
+      final int result = await _databaseService.inserirEntrega(newOrder);
+      
+      // Verificar se inserção foi bem-sucedida
+      if (result > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Entrega criada com sucesso!')),
+        );
+        return true;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro ao criar entrega'), backgroundColor: Colors.red),
+        );
+        return false;
+      }
+    } catch (e) {
+      print('Erro ao salvar nova entrega: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao criar entrega: $e'), backgroundColor: Colors.red),
+      );
+      return false;
+    }
+  }
+  
+  // Método para excluir uma entrega
+  Future<void> _deleteOrder(String orderId) async {
+  // Mostrar diálogo de confirmação
+  final bool? confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Excluir Entrega'),
+      content: const Text('Tem certeza que deseja excluir esta entrega?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Excluir'),
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+        ),
+      ],
+    ),
+  );
+  
+  // Se confirmado, excluir entrega
+  if (confirm == true) {
+    try {
+      // Usa diretamente o orderId como código da entrega
+      final result = await _databaseService.deletarEntrega(orderId);
+      
+      if (result > 0) {
+        // Remover da lista local
+        setState(() {
+          _activeOrders.removeWhere((order) => order.id == orderId);
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Entrega excluída com sucesso')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Entrega não encontrada ou não pode ser excluída'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Erro ao excluir entrega: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao excluir entrega: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
   @override
   void initState() {
     super.initState();
     // Aqui você inicializaria seu BLoC
     // _clientBloc.add(LoadActiveOrdersEvent());
+    _loadOrders();
   }
 
   @override
   Widget build(BuildContext context) {
     // ------>>> alterando aqui: decide se mostra AppBar com base no parâmetro
-    return widget.showAppBar 
-        ? Scaffold(
-            appBar: AppBar(
+    Widget content = _isLoading 
+      ? const Center(child: LoadingIndicator()) 
+      : _buildActiveOrdersList();
+    return Scaffold(
+           appBar: widget.showAppBar ? AppBar(
               title: const Text('Minhas Entregas'),
               automaticallyImplyLeading: false,
               actions: [
                 IconButton(
                   icon: const Icon(Icons.history),
                   onPressed: () {
-                    Navigator.pushNamed(context, '/client_history');
+
+                     Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ClientHistoryScreen(),
+                        ),
+                      );
                   },
                   tooltip: 'Histórico de Pedidos',
                 ),
-                // Menu popup
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadOrders,
+                  tooltip: 'Atualizar Lista',
+                ),      // Menu popup
                 PopupMenuButton<String>(
                   tooltip: 'Menu',
                   onSelected: (value) {
@@ -83,7 +269,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                               child: const Text('Sair'),
                               onPressed: () {
                                 Navigator.pop(context); // Fecha o diálogo
-                                Navigator.pushReplacementNamed(context, '/'); // Volta para a tela inicial
+                                 Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const HomeScreen(),
+                                  ),
+                                );// Volta para a tela inicial
                               },
                             ),
                           ],
@@ -126,19 +317,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   ],
                 ),
               ],
-            ),
+            ) : null,
             floatingActionButton: FloatingActionButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Adicionar novo pedido (a implementar)')),
-                );
-              },
+               onPressed: _createNewOrder,
               tooltip: 'Novo Pedido',
               child: const Icon(Icons.add),
             ),
-            body: _buildActiveOrdersList(),
-          )
-        : _buildActiveOrdersList(); // ------>>> alterando aqui: retorna apenas o conteúdo se não mostrar AppBar
+            body: content
+          );
+       
   }
 
   Widget _buildActiveOrdersList() {
@@ -164,31 +351,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 Text('Motorista: ${order.driverName}'),
               ],
             ),
+            leading: IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => _deleteOrder(order.id),
+              tooltip: 'Excluir',
+            ),
             trailing: ElevatedButton(
   child: const Text('Rastrear'),
   onPressed: () {
-    try {
-      print('Tentando navegar para /client_tracking com ID: ${order.id}');
-      
-      // Use o navigatorKey global diretamente
-      if (navigatorKey.currentState != null) {
-        navigatorKey.currentState!.pushNamed(
-          '/client_tracking', 
-          arguments: order.id.toString() // Força a conversão para String
-        );
-      } else {
-        print('ERRO: navigatorKey.currentState é null!');
-        // Tentativa alternativa
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => ClientTrackingScreen(orderId: order.id.toString()),
-          ),
-        );
-      }
-    } catch (e, stack) {
-      print('Erro ao navegar: $e');
-      print('Stack trace: $stack');
-      // Tentativa alternativa
       try {
         Navigator.push(
           context,
@@ -199,13 +369,129 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       } catch (e2) {
         print('Segundo erro ao navegar: $e2');
       }
-    }
+    
   },
 ),
             isThreeLine: true,
           ),
         );
       },
+    );
+  }
+
+
+}
+class CreateOrderDialog extends StatefulWidget {
+  final Future<bool> Function(String description, String address) onSave;
+
+  const CreateOrderDialog({Key? key, required this.onSave}) : super(key: key);
+
+  @override
+  State<CreateOrderDialog> createState() => _CreateOrderDialogState();
+}
+
+class _CreateOrderDialogState extends State<CreateOrderDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _descriptionController = TextEditingController();
+  final _addressController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    // Validar formulário
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Chamar função de salvamento
+    final success = await widget.onSave(
+      _descriptionController.text,
+      _addressController.text,
+    );
+
+    // Se ainda montado, atualizar estado
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Fechar diálogo com resultado
+      if (success) {
+        Navigator.pop(context, true);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Nova Entrega'),
+      content: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Descrição',
+                  hintText: 'Ex: Pacote de Eletrônicos',
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Por favor, informe uma descrição';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _addressController,
+                decoration: const InputDecoration(
+                  labelText: 'Endereço de Entrega',
+                  hintText: 'Ex: Av. Paulista, 1000 - São Paulo',
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Por favor, informe um endereço';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _submit,
+          child: _isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Salvar'),
+        ),
+      ],
     );
   }
 }

@@ -21,15 +21,15 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   
   WidgetsFlutterBinding.ensureInitialized();
-  final NotificationService pushNotificationService = NotificationService();
-  await pushNotificationService.initialize();
+  
+ 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   final prefs = await SharedPreferences.getInstance();
    try {
-      final pushService = NotificationService();
-      await pushService.initialize(navKey: navigatorKey);
+      final pushService = PushNotificationService();
+      await pushService.initialize();
       print('Serviço de notificações inicializado com sucesso');
     } catch (e) {
       print('Erro ao inicializar serviço de notificações: $e');

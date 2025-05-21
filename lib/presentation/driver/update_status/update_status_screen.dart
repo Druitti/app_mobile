@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:app_mobile/services/camera_service.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:app_mobile/common/model/delivery.dart';
 
@@ -35,20 +39,179 @@ class _UpdateStatusScreenState extends State<UpdateStatusScreen> {
     }
   }
   
-  Future<void> _capturePhoto() async {
-    // Simulação de captura de foto
-    setState(() {
-      _isLoading = true;
-    });
+
+Future<void> _capturePhoto() async {
+  // Mostrar indicador de carregamento
+  setState(() {
+    _isLoading = true;
+  });
+
+  // Obter a instância do serviço de câmera
+  final cameraService = CameraService();
+  
+  try {
+    // Verificar permissão de câmera
+    bool hasPermission = await cameraService.checkCameraPermission();
     
-    // Simular delay de processamento
-    await Future.delayed(const Duration(seconds: 1));
+    // Se não tiver permissão, solicitar
+    if (!hasPermission) {
+      hasPermission = await cameraService.requestCameraPermission();
+      
+      // Se ainda não tiver permissão após solicitação
+      if (!hasPermission) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Permissão da câmera é necessária para capturar a foto'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        
+        return;
+      }
+    }
     
+    // Inicializar a câmera
+    await cameraService.initialize();
+    
+    // Abrir diálogo/tela para a captura de foto
+    final resultado = await _showCameraPreview(context, cameraService);
+    
+    // Verificar se a foto foi capturada com sucesso
+    if (resultado == null) {
+      // Usuário cancelou ou ocorreu erro
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+    
+    // Salvar imagem em armazenamento local
+    final File imageFile = File(resultado);
+    final savedPath = await cameraService.saveImageToLocal(imageFile);
+    
+    // Atualizar o estado com o caminho da foto
     setState(() {
-      _photoPath = '/path/to/captured_photo.jpg'; // Caminho simulado
+      _photoPath = savedPath;
       _isLoading = false;
     });
+    print('Foto salva em: $savedPath');
+    
+    // Mostrar mensagem de sucesso
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Foto capturada com sucesso!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+    
+  } catch (e) {
+    print('Erro ao capturar foto: $e');
+    
+    // Atualizar estado para remover o carregamento
+    setState(() {
+      _isLoading = false;
+    });
+    
+    // Mostrar mensagem de erro
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Erro ao capturar foto: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  } finally {
+    // Liberar recursos da câmera
+    cameraService.dispose();
   }
+}
+  Future<String?> _showCameraPreview(BuildContext context, CameraService cameraService) async {
+  // Se o controlador da câmera não foi inicializado
+  if (cameraService.controller == null || !cameraService.controller!.value.isInitialized) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Não foi possível inicializar a câmera. Tente novamente.'),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return null;
+  }
+  
+  // Exibir o diálogo com a visualização da câmera
+  return await showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                'Capturar Foto de Entrega',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            AspectRatio(
+              aspectRatio: cameraService.controller!.value.aspectRatio,
+              child: CameraPreview(cameraService.controller!),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // Botão para cancelar
+                  TextButton.icon(
+                    icon: const Icon(Icons.cancel, color: Colors.red),
+                    label: const Text('Cancelar'),
+                    onPressed: () {
+                      Navigator.of(context).pop(null); // Retornar null indica cancelamento
+                    },
+                  ),
+                  
+                  // Botão para tirar foto
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Capturar'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () async {
+                      try {
+                        // Capturar a foto
+                        final imagePath = await cameraService.takePicture();
+                        
+                        // Retornar o caminho da foto
+                        Navigator.of(context).pop(imagePath);
+                      } catch (e) {
+                        // Em caso de erro, fechar o diálogo e retornar null
+                        Navigator.of(context).pop(null);
+                        
+                        // Mostrar mensagem de erro
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Erro ao capturar foto: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
   
   Future<void> _updateDeliveryStatus() async {
     // Simulação de atualização de status
@@ -226,15 +389,69 @@ class _UpdateStatusScreenState extends State<UpdateStatusScreen> {
                         
                         // Area de foto
                         Container(
-                          height: 200,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(8),
+                            height: 200,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: _photoPath != null
+                              ? Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    // Exibir a imagem capturada
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(7),
+                                      child: Image.file(
+                                        File(_photoPath!),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                    // Adicionar botão para remover a foto
+                                    Positioned(
+                                      top: 5,
+                                      right: 5,
+                                      child: Container(
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: IconButton(
+                                          icon: const Icon(Icons.close, color: Colors.red),
+                                          onPressed: () {
+                                            setState(() {
+                                              _photoPath = null;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                    // Opcionalmente, adicionar uma sobreposição de sucesso
+                                    Positioned(
+                                      bottom: 10,
+                                      left: 10,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.8),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.check_circle, color: Colors.white, size: 16),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Foto capturada',
+                                              style: TextStyle(color: Colors.white, fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : const Center(child: Text('Nenhuma foto capturada')),
                           ),
-                          child: _photoPath != null
-                            ? const Center(child: Text('Foto capturada!'))
-                            : const Center(child: Text('Nenhuma foto capturada')),
-                        ),
                         const SizedBox(height: 12),
                         
                         ElevatedButton.icon(

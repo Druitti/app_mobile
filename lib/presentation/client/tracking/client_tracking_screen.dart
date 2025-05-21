@@ -321,7 +321,7 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Rastreando Pedido ${widget.orderId}'),
+        title: Text('Rastreando Pedido'),
         actions: [
           // Botão de atualização
           IconButton(

@@ -1,5 +1,8 @@
 
+import 'package:app_mobile/main.dart';
 import 'package:app_mobile/presentation/client/tracking/client_tracking_screen.dart';
+import 'package:app_mobile/presentation/driver/deliveries/completed_deliveries_screen.dart';
+import 'package:app_mobile/presentation/driver/navigation/delivery_navigation_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:app_mobile/common/model/delivery.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
@@ -57,6 +60,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   tooltip: 'Entregas Concluídas',
                   onPressed: () {
                     Navigator.pushNamed(context, '/driver_completed');
+                    Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CompletedDeliveriesScreen(),
+                    ),
+                  );
                   },
                 ),
                 PopupMenuButton<String>(
@@ -85,7 +94,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               child: const Text('Sair'),
                               onPressed: () {
                                 Navigator.pop(context); // Fecha o diálogo
-                                Navigator.pushReplacementNamed(context, '/'); // Volta para a tela inicial
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const HomeScreen(),
+                                  ),
+                                ); // Volta para a tela inicial
                               },
                             ),
                           ],
@@ -181,7 +195,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ClientTrackingScreen(orderId: delivery.id.toString()),
+            builder: (context) => DeliveryNavigationScreen(delivery: delivery),
           ),
         );
       } catch (e2) {
