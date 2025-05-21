@@ -1,16 +1,39 @@
+import 'package:app_mobile/firebase_options.dart';
 import 'package:app_mobile/presentation/client/home/client_home_screen.dart';
+import 'package:app_mobile/presentation/driver/deliveries/driver_home_screen.dart';
+import 'package:app_mobile/presentation/shared/setting/setting_screen.dart';
+import 'package:app_mobile/services/notification_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'screens/cliente/home_screen.dart';
-import 'screens/motorista/home_screen.dart';
-import 'screens/configuracoes/settings_screen.dart';
 
+
+
+@pragma('vm:entry-point')
+// Future<void> _onBackgroundMessage(RemoteMessage message) async {
+//   //print("--------------------- On Background Message --------------------");
+
+// (message);
+// }
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
+  
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  final NotificationService pushNotificationService = NotificationService();
+  await pushNotificationService.initialize();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   final prefs = await SharedPreferences.getInstance();
+   try {
+      final pushService = NotificationService();
+      await pushService.initialize(navKey: navigatorKey);
+      print('Serviço de notificações inicializado com sucesso');
+    } catch (e) {
+      print('Erro ao inicializar serviço de notificações: $e');
+    }
   
   runApp(
     MultiProvider(
@@ -123,6 +146,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -132,7 +156,8 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isMotorista ? 'Entregas Pendentes' : 'Minhas Entregas'),
+        title: Text(isMotorista ? 'Entregas Pendentes' : 'Minhas Entregas'), // ------>>> alterando aqui: título único
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
@@ -140,7 +165,7 @@ class HomeScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const SettingsScreen(),
+                  builder: (context) => const SettingsScreen(), // ------>>> alterando aqui: usa SettingScreen diretamente
                 ),
               );
             },
@@ -153,9 +178,13 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
+      // ------>>> alterando aqui: remover AppBar das telas filhas adicionando parâmetro
       body: isMotorista
-          ? const MotoristaHomeScreen()
-          : const ClientHomeScreen(),
+          ? const DriverHomeScreen(showAppBar: false)
+          : const ClientHomeScreen(showAppBar: false),
+      // ------>>> alterando aqui: FloatingActionButton já será exibido por cada tela
     );
   }
 }
+
+

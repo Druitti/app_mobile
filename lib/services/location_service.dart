@@ -1,4 +1,5 @@
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:app_mobile/common/utils/constants.dart';
 import 'package:app_mobile/common/utils/exceptions.dart';
@@ -59,20 +60,44 @@ class LocationService {
       ),
     );
   }
+  String formatDistance(double distanceInMeters) {
+    if (distanceInMeters >= 1000) {
+      return '${(distanceInMeters / 1000).toStringAsFixed(1)} km';
+    } else {
+      return '${distanceInMeters.round()} m';
+    }
+  }
+  // Obter LatLng da localização atual (formato do Google Maps)
+  Future<LatLng?> getCurrentLatLng() async {
+    final position = await getCurrentLocation();
+    if (position == null) return null;
+    
+    return LatLng(position.latitude, position.longitude);
+  }
 
-  double calculateDistance(
-    double startLat,
-    double startLng,
-    double endLat,
-    double endLng,
-  ) {
+  // Calcular distância entre dois pontos (em metros)
+  double calculateDistance(LatLng point1, LatLng point2) {
     return Geolocator.distanceBetween(
-      startLat,
-      startLng,
-      endLat,
-      endLng,
+      point1.latitude,
+      point1.longitude,
+      point2.latitude,
+      point2.longitude,
     );
   }
+
+double calculateDistanceCoordinates(
+  double startLat,
+  double startLng,
+  double endLat,
+  double endLng,
+) {
+  return Geolocator.distanceBetween(
+    startLat,
+    startLng,
+    endLat,
+    endLng,
+  );
+}
 
   Future<bool> requestLocationPermission() async {
     final status = await Permission.location.request();

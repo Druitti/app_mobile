@@ -22,12 +22,13 @@
     <application
         android:label="App de Entregas"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
 
         <!-- Configuração do Google Maps -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="${GOOGLE_MAPS_API_KEY}"/>
+            android:value="AIzaSyCZ4x7JPxQtkGfgBNw2Fl9of62r9FP2pYc"/>
 
         <activity
             android:name=".MainActivity"

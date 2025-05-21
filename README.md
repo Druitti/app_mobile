@@ -33,8 +33,8 @@ Aplicativo móvel desenvolvido em Flutter para rastreamento de entregas, com int
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/app-entregas.git
-cd app-entregas
+git https://github.com/Druitti/app_mobile.git
+cd app-mobile
 ```
 
 2. Instale as dependências:
