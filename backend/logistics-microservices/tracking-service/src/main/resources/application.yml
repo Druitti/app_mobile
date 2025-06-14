@@ -1,0 +1,45 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: tracking-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/logistics_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+eureka:
+  client:
+    service-url:
+      default-zone: http://localhost:8761/eureka
+  instance:
+    instance-id: ${spring.application.name}:${random.value}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://postgres:5432/logistics_db
+  rabbitmq:
+    host: rabbitmq
+
+eureka:
+  client:
+    service-url:
+      default-zone: http://eureka-server:8761/eureka

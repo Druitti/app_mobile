@@ -1,0 +1,39 @@
+FROM openjdk:17-jdk-slim
+
+# Metadados
+LABEL maintainer="logistics-team"
+LABEL description="API Gateway with Authentication"
+LABEL version="1.0.0"
+
+# Instalar curl para health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Variáveis de ambiente
+ENV JAVA_OPTS="-Xmx512m -Xms256m"
+ENV SPRING_PROFILES_ACTIVE=docker
+ENV SERVER_PORT=8080
+
+# Criar usuário não-root
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Criar diretório de trabalho
+WORKDIR /app
+
+# Copiar JAR
+COPY target/api-gateway-*.jar app.jar
+
+# Alterar propriedade do arquivo
+RUN chown appuser:appuser app.jar
+
+# Expor porta
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+# Mudar para usuário não-root
+USER appuser
+
+# Comando de inicialização
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

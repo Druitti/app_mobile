@@ -1,0 +1,26 @@
+FROM openjdk:17-jdk-slim
+
+# Metadados
+LABEL maintainer="logistics-team"
+LABEL description="Eureka Server for Service Discovery"
+LABEL version="1.0.0"
+
+# Variáveis de ambiente
+ENV JAVA_OPTS="-Xmx512m -Xms256m"
+ENV SERVER_PORT=8761
+
+# Criar diretório de trabalho
+WORKDIR /app
+
+# Copiar JAR
+COPY target/eureka-server-*.jar app.jar
+
+# Expor porta
+EXPOSE 8761
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8761/actuator/health || exit 1
+
+# Comando de inicialização
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
