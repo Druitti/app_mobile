@@ -455,211 +455,238 @@ Future<void> _geocodeAddressUsingLocal(String address) async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Selecionar Local de Entrega'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: _confirmLocation,
-            tooltip: 'Confirmar localização',
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'Selecionar Localização',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
           ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Barra de pesquisa com resultados de busca
-                Padding(
-  padding: const EdgeInsets.all(8.0),
-  child: Column(
-    children: [
-      // Barra de pesquisa
-      Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: TextField(
-          controller: _searchController,
-          decoration: InputDecoration(
-            hintText: 'Buscar endereço...',
-            prefixIcon: _isSearching 
-                ? Container(
-                    padding: const EdgeInsets.all(10),
-                    width: 20, 
-                    height: 20, 
-                    child: const CircularProgressIndicator(strokeWidth: 2)
-                  )
-                : const Icon(Icons.search),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() {
-                        _searchResults = [];
-                      });
-                    },
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15),
-          ),
-          onChanged: (value) {
-            // Implementar debounce para não fazer muitas chamadas enquanto digita
-            if (_debounce?.isActive ?? false) _debounce!.cancel();
-            _debounce = Timer(const Duration(milliseconds: 500), () {
-              if (value.isNotEmpty) {
-                _searchAddressWithGoogle(value);
-              } else {
-                setState(() {
-                  _searchResults = [];
-                });
-              }
-            });
-          },
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      
-      // Lista de resultados de pesquisa (com visual melhorado)
-      if (_searchResults.isNotEmpty)
-        Container(
-          margin: const EdgeInsets.only(top: 4),
-          constraints: const BoxConstraints(maxHeight: 250),
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+      body: Stack(
+        children: [
+          // Mapa
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : GoogleMap(
+                  onMapCreated: (GoogleMapController controller) {
+                    _controller.complete(controller);
+                  },
+                  initialCameraPosition: CameraPosition(
+                    target: _selectedLocation ?? const LatLng(-23.5505, -46.6333),
+                    zoom: 15,
+                  ),
+                  markers: _markers,
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
+                  zoomControlsEnabled: false,
+                  mapToolbarEnabled: false,
+                ),
+
+          // Barra de pesquisa
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-            ],
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Pesquisar endereço...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchResults = []);
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                onChanged: _onSearchChanged,
+              ),
+            ),
           ),
-          child: ListView.separated(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            separatorBuilder: (context, index) => const Divider(height: 1),
-            itemCount: _searchResults.length,
-            itemBuilder: (context, index) {
-              final result = _searchResults[index];
-              return Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: index == 0
-                      ? const BorderRadius.vertical(top: Radius.circular(10))
-                      : index == _searchResults.length - 1
-                          ? const BorderRadius.vertical(bottom: Radius.circular(10))
-                          : null,
-                  onTap: () => _selectSearchResult(result),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.location_on, size: 20, color: Colors.redAccent),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            result['address'] as String,
-                            style: const TextStyle(fontSize: 14),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+
+          // Resultados da pesquisa
+          if (_searchResults.isNotEmpty)
+            Positioned(
+              top: 80,
+              left: 16,
+              right: 16,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: _searchResults.length,
+                  itemBuilder: (context, index) {
+                    final result = _searchResults[index];
+                    return ListTile(
+                      leading: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      ],
+                        child: Icon(
+                          Icons.location_on,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      title: Text(
+                        result['address'] ?? 'Endereço não disponível',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      onTap: () => _onSearchResultSelected(result),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          // Painel de informações
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Indicador de arrasto
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-        ),
-    ],
-  ),
-),
-                
-                // Exibe o endereço selecionado
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  color: Theme.of(context).colorScheme.surfaceVariant,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+
+                  // Endereço selecionado
+                  Row(
                     children: [
-                      const Text(
-                        'Endereço selecionado:',
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.location_on,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Endereço Selecionado',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _selectedAddress,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Botão de confirmação
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _selectedLocation == null
+                          ? null
+                          : () => widget.onLocationSelected(_selectedLocation!, _selectedAddress),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirmar Localização',
                         style: TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _selectedAddress,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-                
-                // Mapa ocupa o restante do espaço
-                Expanded(
-                  child: Stack(
-                    children: [
-                      GoogleMap(
-                        mapType: MapType.normal,
-                        initialCameraPosition: CameraPosition(
-                          target: _selectedLocation ?? const LatLng(-23.5505, -46.6333),
-                          zoom: 15,
-                        ),
-                        markers: _markers,
-                        onMapCreated: (GoogleMapController controller) {
-                          _controller.complete(controller);
-                        },
-                        onTap: _onMapTap,
-                        myLocationEnabled: true,
-                        myLocationButtonEnabled: false,
-                        zoomControlsEnabled: false,
-                      ),
-                      
-                      // Botão de localização atual
-                      Positioned(
-                        right: 16,
-                        bottom: 16,
-                        child: FloatingActionButton(
-                          heroTag: 'btn_current_location',
-                          onPressed: _goToCurrentLocation,
-                          child: const Icon(Icons.my_location),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ElevatedButton(
-          onPressed: _confirmLocation,
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
           ),
-          child: const Text('Confirmar Local de Entrega'),
-        ),
+        ],
       ),
     );
   }

@@ -15,6 +15,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_mobile/presentation/auth/login_screen.dart';
+import 'package:app_mobile/presentation/auth/register_screen.dart';
+import 'package:app_mobile/presentation/auth/forgot_password_screen.dart';
 
 
 @pragma('vm:entry-point')
@@ -84,13 +87,17 @@ class MyApp extends StatelessWidget {
       themeMode: context.watch<ThemeProvider>().themeMode,
       
       // Definição das rotas do aplicativo
-      initialRoute: '/',
+      initialRoute: '/login',
       
       
       // Rotas estáticas definidas aqui
       routes: {
-        '/': (context) => const SplashScreen(),
-        '/selection': (context) => const UserSelectionScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
+        '/home': (context) => const ClientHomeScreen(),
+        '/tracking': (context) => const ClientTrackingScreen(),
+        '/history': (context) => const ClientHistoryScreen(),
         '/client_home': (context) => const ClientHomeScreen(),
         '/driver_home': (context) => const DriverHomeScreen(),
         '/client_history': (context) => const ClientHistoryScreen(),
@@ -263,7 +270,7 @@ class UserSelectionScreen extends StatelessWidget {
               child: const Text('Entrar como Cliente'),
               onPressed: () {
                 context.read<UserTypeProvider>().setUserType(false);
-                Navigator.pushReplacementNamed(context, '/client_home');
+                Navigator.pushReplacementNamed(context, '/home');
               },
             ),
             const SizedBox(height: 20),

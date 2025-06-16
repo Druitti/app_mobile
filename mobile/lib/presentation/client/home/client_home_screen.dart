@@ -229,170 +229,231 @@ Future<void> _createNewOrder() async {
 
   @override
   Widget build(BuildContext context) {
-    // ------>>> alterando aqui: decide se mostra AppBar com base no parâmetro
     Widget content = _isLoading 
       ? const Center(child: LoadingIndicator()) 
       : _buildActiveOrdersList();
     return Scaffold(
-           appBar: widget.showAppBar ? AppBar(
-              title: const Text('Minhas Entregas'),
-              automaticallyImplyLeading: false,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.history),
-                  onPressed: () {
-
-                     Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ClientHistoryScreen(),
-                        ),
-                      );
-                  },
-                  tooltip: 'Histórico de Pedidos',
+      backgroundColor: Colors.grey[100],
+      appBar: widget.showAppBar ? AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'Minhas Entregas',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history, color: Colors.black87),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ClientHistoryScreen(),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _loadOrders,
-                  tooltip: 'Atualizar Lista',
-                ),      // Menu popup
-                PopupMenuButton<String>(
-                  tooltip: 'Menu',
-                  onSelected: (value) {
-                    if (value == 'settings') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Configurações (a implementar)')),
-                      );
-                    } else if (value == 'help') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Ajuda (a implementar)')),
-                      );
-                    } else if (value == 'logout') {
-                      showDialog( 
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Sair'),
-                          content: const Text('Deseja sair do modo Cliente?'),
-                          actions: [
-                            TextButton(
-                              child: const Text('Cancelar'),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                            TextButton(
-                              child: const Text('Sair'),
-                              onPressed: () {
-                                Navigator.pop(context); // Fecha o diálogo
-                                 Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const HomeScreen(),
-                                  ),
-                                );// Volta para a tela inicial
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'settings',
-                      child: Row(
-                        children: [
-                          Icon(Icons.settings, color: Colors.grey),
-                          SizedBox(width: 8),
-                          Text('Configurações'),
-                        ],
+              );
+            },
+          ),
+        ],
+      ) : null,
+      body: Column(
+        children: [
+          if (_activeOrders.isEmpty && !_isLoading)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.local_shipping_outlined,
+                      size: 80,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Nenhuma entrega ativa',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const PopupMenuItem(
-                      value: 'help',
-                      child: Row(
-                        children: [
-                          Icon(Icons.help, color: Colors.grey),
-                          SizedBox(width: 8),
-                          Text('Ajuda'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem(
-                      value: 'logout',
-                      child: Row(
-                        children: [
-                          Icon(Icons.exit_to_app, color: Colors.grey),
-                          SizedBox(width: 8),
-                          Text('Sair'),
-                        ],
+                    const SizedBox(height: 8),
+                    Text(
+                      'Crie uma nova entrega para começar',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[500],
                       ),
                     ),
                   ],
                 ),
-              ],
-            ) : null,
-            floatingActionButton: FloatingActionButton(
-               onPressed: _createNewOrder,
-              tooltip: 'Novo Pedido',
-              child: const Icon(Icons.add),
-            ),
-            body: content
-          );
-       
+              ),
+            )
+          else
+            Expanded(child: content),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createNewOrder,
+        backgroundColor: Theme.of(context).primaryColor,
+        icon: const Icon(Icons.add),
+        label: const Text('Nova Entrega'),
+      ),
+    );
   }
 
   Widget _buildActiveOrdersList() {
-    if (_activeOrders.isEmpty) {
-      return const Center(
-        child: Text('Nenhum pedido ativo no momento.'),
-      );
-    }
-
     return ListView.builder(
+      padding: const EdgeInsets.all(16),
       itemCount: _activeOrders.length,
       itemBuilder: (context, index) {
         final order = _activeOrders[index];
         return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: ListTile(
-            title: Text(order.description),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Status: ${order.status}'),
-                Text('Previsão: ${order.estimatedDelivery.toString().substring(0, 16)}'),
-                Text('Motorista: ${order.driverName}'),
-              ],
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _deleteOrder(order.id),
-              tooltip: 'Excluir',
-            ),
-            trailing: ElevatedButton(
-  child: const Text('Rastrear'),
-  onPressed: () {
-      try {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ClientTrackingScreen(orderId: order.id.toString()),
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-        );
-      } catch (e2) {
-        print('Segundo erro ao navegar: $e2');
-      }
-    
-  },
-),
-            isThreeLine: true,
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ClientTrackingScreen(orderId: order.id),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          order.description,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      _buildStatusChip(order.status),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Estimativa: ${_formatDate(order.estimatedDelivery)}',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (order.driverName != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.person, size: 16, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Motorista: ${order.driverName}',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _deleteOrder(order.id),
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('Excluir'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ClientTrackingScreen(orderId: order.id),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.visibility, size: 18),
+                        label: const Text('Acompanhar'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },
     );
   }
 
+  Widget _buildStatusChip(String status) {
+    Color color;
+    switch (status.toLowerCase()) {
+      case 'pendente':
+        color = Colors.orange;
+        break;
+      case 'em andamento':
+        color = Colors.blue;
+        break;
+      case 'entregue':
+        color = Colors.green;
+        break;
+      default:
+        color = Colors.grey;
+    }
 
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w500,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
 }
 class CreateOrderDialog extends StatefulWidget {
   final Future<bool> Function(String description, String address, LatLng? coordinates) onSave;
@@ -473,21 +534,69 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
   
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Nova Entrega'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Cabeçalho
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.local_shipping,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Nova Entrega',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(false),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Formulário
               TextFormField(
                 controller: _descriptionController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Descrição da Entrega',
                   hintText: 'Ex: Pacote de Roupas',
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.description),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                  ),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -497,16 +606,31 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
                 },
               ),
               const SizedBox(height: 16),
+
+              // Seletor de endereço
               InkWell(
                 onTap: _openMapPicker,
+                borderRadius: BorderRadius.circular(12),
                 child: InputDecorator(
                   decoration: InputDecoration(
                     labelText: 'Endereço de Entrega',
                     hintText: 'Selecione no mapa',
-                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.location_on),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                    ),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.map),
                       onPressed: _openMapPicker,
+                      tooltip: 'Abrir mapa',
                     ),
                   ),
                   child: Text(
@@ -519,43 +643,82 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
                   ),
                 ),
               ),
+
+              // Localização selecionada
               if (_selectedLocation != null) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on, size: 16, color: Colors.green),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        'Localização selecionada: ${_selectedLocation!.latitude.toStringAsFixed(5)}, ${_selectedLocation!.longitude.toStringAsFixed(5)}',
-                        style: const TextStyle(fontSize: 12, color: Colors.green),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green[100]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle, size: 16, color: Colors.green[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Localização selecionada: ${_selectedLocation!.latitude.toStringAsFixed(5)}, ${_selectedLocation!.longitude.toStringAsFixed(5)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green[700],
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
+
+              const SizedBox(height: 24),
+
+              // Botões de ação
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Cancelar'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _saveOrder,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Criar Entrega'),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          onPressed: _isLoading ? null : _saveOrder,
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
-                )
-              : const Text('Salvar'),
-        ),
-      ],
     );
   }
 }

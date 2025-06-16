@@ -320,407 +320,370 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Rastreando Pedido'),
-        actions: [
-          // Botão de atualização
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Atualizar',
-            onPressed: _atualizarRastreamento,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'Rastreamento',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
           ),
-          // Botão de informações
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'Informações',
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Informações de Rastreamento'),
-                  content: const Text(
-                    'Este mapa mostra a localização atual da sua entrega.\n\n'
-                    '• Marcador azul: posição atual do entregador\n'
-                    '• Marcador vermelho: destino da entrega\n'
-                    '• Marcador verde: sua localização atual\n'
-                    '• Linha azul: rota percorrida pelo entregador\n\n'
-                    'O horário de entrega é uma estimativa e pode variar conforme o trânsito.',
-                  ),
-                  actions: [
-                    TextButton(
-                      child: const Text('Fechar'),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: _isLoading
-          ? const Center(child: LoadingIndicator())
-          : Column(
-              children: [
-                // Mapa ocupando a maior parte da tela
-                Expanded(
-                  flex: 3,
-                  child: Stack(
-                    children: [
-                      // Mapa principal
-                      GoogleMap(
-                        onMapCreated: _onMapCreated,
-                        initialCameraPosition: CameraPosition(
-                          target: _order?.latitude != null && _order?.longitude != null
-                              ? LatLng(_order!.latitude!, _order!.longitude!)
-                              : const LatLng(-23.5505, -46.6333), // Centro de SP como fallback
-                          zoom: 14.0,
-                        ),
-                        markers: _markers,
-                        polylines: _polylines,
-                        myLocationEnabled: true,
-                        myLocationButtonEnabled: false,
-                        compassEnabled: true,
-                        mapToolbarEnabled: false,
-                        zoomControlsEnabled: false,
-                        onTap: (_) {
-                          // Desativar seguimento automático ao tocar no mapa
-                          setState(() {
-                            _followVehicle = false;
-                          });
-                        },
+          ? const Center(child: CircularProgressIndicator())
+          : _order == null
+              ? _buildErrorState()
+              : Stack(
+                  children: [
+                    // Mapa
+                    GoogleMap(
+                      onMapCreated: (controller) => _mapController = controller,
+                      initialCameraPosition: CameraPosition(
+                        target: _simulatedRoute[0],
+                        zoom: 15,
                       ),
-                      
-                      // Controles personalizados
-                      Positioned(
-                        top: 16,
-                        right: 16,
+                      markers: _markers,
+                      polylines: _polylines,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: false,
+                      zoomControlsEnabled: false,
+                      mapToolbarEnabled: false,
+                    ),
+
+                    // Painel de informações
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Botão para seguir o veículo
-                            FloatingActionButton.small(
-                              heroTag: 'follow',
-                              backgroundColor: _followVehicle ? Colors.blue : Colors.grey,
-                              child: Icon(
-                                _followVehicle 
-                                    ? Icons.navigation 
-                                    : Icons.navigation_outlined,
-                                color: Colors.white,
+                            // Indicador de arrasto
+                            Center(
+                              child: Container(
+                                width: 40,
+                                height: 4,
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[300],
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
                               ),
-                              onPressed: () {
-                                setState(() {
-                                  _followVehicle = !_followVehicle;
-                                  
-                                  // Se ativar seguimento, centralizar no entregador
-                                  if (_followVehicle && _simulationStep < _simulatedRoute.length) {
-                                    _mapController?.animateCamera(
-                                      CameraUpdate.newLatLng(_simulatedRoute[_simulationStep]),
+                            ),
+
+                            // Status do pedido
+                            Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    Icons.local_shipping,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Status do Pedido',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _order!.status,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                _buildStatusChip(_order!.status),
+                              ],
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Informações de tempo e distância
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildInfoCard(
+                                    icon: Icons.access_time,
+                                    title: 'Tempo Estimado',
+                                    value: _timeText,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildInfoCard(
+                                    icon: Icons.route,
+                                    title: 'Distância',
+                                    value: _distanceText,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Endereço de entrega
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue[50],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.location_on,
+                                      color: Colors.blue[700],
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Endereço de Entrega',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          _order!.endereco ?? _order!.description,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Botão de seguir veículo
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  setState(() => _followVehicle = !_followVehicle);
+                                  if (_followVehicle && _mapController != null) {
+                                    final currentLocation = _simulatedRoute[_simulationStep];
+                                    _mapController!.animateCamera(
+                                      CameraUpdate.newLatLng(currentLocation),
                                     );
                                   }
-                                });
-                              },
-                              tooltip: _followVehicle 
-                                  ? 'Seguindo entregador' 
-                                  : 'Clique para seguir o entregador',
-                            ),
-                            const SizedBox(height: 8),
-                            
-                            // Botão para centralizar mapa
-                            FloatingActionButton.small(
-                              heroTag: 'center',
-                              child: const Icon(Icons.center_focus_strong),
-                              onPressed: _centralizarMapa,
-                              tooltip: 'Centralizar mapa',
-                            ),
-                            const SizedBox(height: 8),
-                            
-                            // Botões de zoom
-                            FloatingActionButton.small(
-                              heroTag: 'zoom_in',
-                              child: const Icon(Icons.add),
-                              onPressed: () {
-                                _mapController?.animateCamera(CameraUpdate.zoomIn());
-                              },
-                              tooltip: 'Ampliar',
-                            ),
-                            const SizedBox(height: 8),
-                            FloatingActionButton.small(
-                              heroTag: 'zoom_out',
-                              child: const Icon(Icons.remove),
-                              onPressed: () {
-                                _mapController?.animateCamera(CameraUpdate.zoomOut());
-                              },
-                              tooltip: 'Reduzir',
+                                },
+                                icon: Icon(
+                                  _followVehicle ? Icons.gps_fixed : Icons.gps_not_fixed,
+                                ),
+                                label: Text(
+                                  _followVehicle ? 'Seguindo Entregador' : 'Seguir Entregador',
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _followVehicle
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.grey[300],
+                                  foregroundColor: _followVehicle
+                                      ? Colors.white
+                                      : Colors.grey[700],
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                
-                // Informações detalhadas da entrega
-                Expanded(
-                  flex: 2,
-                  child: _order == null
-                      ? const Center(child: Text('Informações não disponíveis'))
-                      : SingleChildScrollView(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Título e status
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            _order!.description,
-                                            style: const TextStyle(
-                                              fontSize: 18, 
-                                              fontWeight: FontWeight.bold
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                _getStatusIcon(_order!.status),
-                                                color: _getStatusColor(_order!.status),
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                _order!.status,
-                                                style: TextStyle(
-                                                  color: _getStatusColor(_order!.status),
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    // Tempo e distância
-                                    if (_distanceText.isNotEmpty && _timeText.isNotEmpty)
-                                      Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue.shade50,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: Colors.blue.shade100),
-                                        ),
-                                        child: Column(
-                                          children: [
-                                            Text(
-                                              _timeText,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.blue,
-                                              ),
-                                            ),
-                                            Text(
-                                              _distanceText,
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.blue.shade700,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                
-                                const Divider(height: 24),
-                                
-                                // Detalhes do entregador
-                                const Text(
-                                  'Entregador:',
-                                  style: TextStyle(
-                                    fontSize: 16, 
-                                    fontWeight: FontWeight.bold
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                
-                                Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 20,
-                                      backgroundColor: Colors.grey.shade200,
-                                      child: Icon(
-                                        Icons.person,
-                                        color: Colors.grey.shade700,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            _order!.driverName,
-                                            style: const TextStyle(fontWeight: FontWeight.bold),
-                                          ),
-                                          const Text('Entregas: 253 | Avaliação: 4.8 ★'),
-                                        ],
-                                      ),
-                                    ),
-                                    // Botão para ligar
-                                    ElevatedButton.icon(
-                                      icon: const Icon(Icons.phone),
-                                      label: const Text('Ligar'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      onPressed: () {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Iniciando chamada... (simulação)'),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                
-                                const SizedBox(height: 16),
-                                
-                                // Detalhes da entrega
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Endereço:',
-                                            style: TextStyle(fontWeight: FontWeight.bold),
-                                          ),
-                                          Text(_order!.endereco ?? 'Endereço não disponível'),
-                                          
-                                          const SizedBox(height: 8),
-                                          
-                                          const Text(
-                                            'Previsão de Entrega:',
-                                            style: TextStyle(fontWeight: FontWeight.bold),
-                                          ),
-                                          Text(_formatDateTime(_order!.estimatedDelivery)),
-                                        ],
-                                      ),
-                                    ),
-                                    
-                                    // Observações/instruções
-                                    if (_order!.observacoes != null)
-                                      Expanded(
-                                        child: Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: Colors.yellow.shade50,
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: Colors.yellow.shade200),
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              const Text(
-                                                'Observações:',
-                                                style: TextStyle(fontWeight: FontWeight.bold),
-                                              ),
-                                              Text(_order!.observacoes!),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                ),
-              ],
-            ),
-            
-      // Botão para contatar o entregador
-      floatingActionButton: !_isLoading && _order != null
-          ? FloatingActionButton.extended(
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  builder: (context) => Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Contatar Entregador',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 16),
-                        ListTile(
-                          leading: const CircleAvatar(
-                            backgroundColor: Colors.green,
-                            child: Icon(Icons.phone, color: Colors.white),
-                          ),
-                          title: const Text('Ligar'),
-                          subtitle: const Text('Falar diretamente com o entregador'),
-                          onTap: () {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Iniciando chamada... (simulação)')),
-                            );
-                          },
-                        ),
-                        ListTile(
-                          leading: const CircleAvatar(
-                            backgroundColor: Colors.blue,
-                            child: Icon(Icons.message, color: Colors.white),
-                          ),
-                          title: const Text('Enviar Mensagem'),
-                          subtitle: const Text('Enviar instruções ou dúvidas'),
-                          onTap: () {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Abrindo chat... (simulação)')),
-                            );
-                          },
-                        ),
-                      ],
                     ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.contact_phone),
-              label: const Text('Contatar Entregador'),
-              backgroundColor: Colors.green,
-            )
-          : null,
+
+                    // Botão de localização atual
+                    Positioned(
+                      right: 16,
+                      bottom: 320,
+                      child: FloatingActionButton(
+                        heroTag: 'btn_current_location',
+                        onPressed: _obterLocalizacaoUsuario,
+                        backgroundColor: Colors.white,
+                        child: Icon(
+                          Icons.my_location,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
 
-  // Funções auxiliares
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.error_outline,
+              size: 40,
+              color: Colors.red[700],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Erro ao carregar pedido',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.red[700],
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _carregarPedido,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Tentar Novamente'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  // Cor baseada no status
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: Colors.grey[600],
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: _getStatusColor(status).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _getStatusText(status),
+        style: TextStyle(
+          color: _getStatusColor(status),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'preparando':
+      case 'pendente':
         return Colors.orange;
-      case 'em trânsito':
+      case 'em andamento':
         return Colors.blue;
       case 'entregue':
+      case 'concluída':
         return Colors.green;
       case 'cancelado':
         return Colors.red;
@@ -729,24 +692,19 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
     }
   }
 
-  // Ícone baseado no status
-  IconData _getStatusIcon(String status) {
+  String _getStatusText(String status) {
     switch (status.toLowerCase()) {
-      case 'preparando':
-        return Icons.inventory;
-      case 'em trânsito':
-        return Icons.local_shipping;
+      case 'pendente':
+        return 'Pendente';
+      case 'em andamento':
+        return 'Em Andamento';
       case 'entregue':
-        return Icons.check_circle;
+      case 'concluída':
+        return 'Entregue';
       case 'cancelado':
-        return Icons.cancel;
+        return 'Cancelado';
       default:
-        return Icons.help;
+        return status;
     }
-  }
-
-  // Formatação de data/hora
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }
