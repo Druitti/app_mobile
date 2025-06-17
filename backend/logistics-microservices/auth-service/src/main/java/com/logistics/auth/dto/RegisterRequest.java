@@ -18,6 +18,7 @@ public class RegisterRequest {
     
     private String firstName;
     private String lastName;
+    @NotBlank(message = "O número de telefone é obrigatório")
     private String phone;
     
     public RegisterRequest() {}
