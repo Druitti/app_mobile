@@ -12,11 +12,12 @@ import 'package:app_mobile/common/model/order.dart';
 import 'package:app_mobile/services/database_service.dart';
 import 'package:app_mobile/common/model/delivery.dart';
 import 'dart:math';
-
-import 'package:google_maps_flutter/google_maps_flutter.dart'; 
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:app_mobile/services/order_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ClientHomeScreen extends StatefulWidget {
-  final bool showAppBar; 
+  final bool showAppBar;
 
   const ClientHomeScreen({Key? key, this.showAppBar = true}) : super(key: key);
 
@@ -24,53 +25,35 @@ class ClientHomeScreen extends StatefulWidget {
   State<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
 
-
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
   // Exemplo de dados para demonstração
-  final List<Order> _activeOrders =[] ;
+  final List<Order> _activeOrders = [];
   final DatabaseService _databaseService = DatabaseService();
   bool _isLoading = false;
-  final PushNotificationService _notificationService = PushNotificationService();
+  final PushNotificationService _notificationService =
+      PushNotificationService();
+  final OrderService _orderService = OrderService();
   // final Future<bool> Function(String description, String address, [LatLng? coordinates]) onSave;
   // Método para carregar entregas do banco de dados
   Future<void> _loadOrders() async {
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
-      // Buscar entregas do banco de dados
-      final entregasDb = await _databaseService.listarEntregas();
-      
-      // Se não houver entregas no banco, mantenha os dados de exemplo
-   // Se não houver entregas no banco, mantenha os dados de exemplo
-    if (entregasDb.isNotEmpty) {
-      final List<Order> ordersFromDb = entregasDb
-          .where((map) => map['status']?.toLowerCase() != 'entregue') // Filtra os que não são 'Entregue'
-          .map((map) {
-            // Converter do formato do banco para Order
-            return Order(
-              id: map['codigo'] ?? map['id'].toString(),
-              description: map['descricao'] ?? 'Entrega #${map['id']}',
-              status: map['status'] ?? 'Pendente',
-              estimatedDelivery: DateTime.parse(map['data_atualizacao'] ?? DateTime.now().toIso8601String()),
-              driverName: 'Motorista Designado',
-            );
-          }).toList();
-
-
-        
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      if (userId != null) {
+        final orders = await _orderService.getOrdersForCustomer(userId);
         setState(() {
-          // Se tiver dados no banco, substitua os dados de exemplo
-          if (ordersFromDb.isNotEmpty) {
-          
-            _activeOrders.addAll(ordersFromDb);
-          }
+          _activeOrders.clear();
+          _activeOrders.addAll(orders);
         });
+      } else {
+        throw Exception('Usuário não autenticado');
       }
     } catch (e) {
       print('Erro ao carregar entregas: $e');
-      // Tratar erro (opcional)
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao carregar entregas: $e')),
       );
@@ -80,9 +63,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       });
     }
   }
-  
+
   // Método para criar uma nova entrega
-Future<void> _createNewOrder() async {
+  Future<void> _createNewOrder() async {
     // Abrir diálogo para criar nova entrega com seleção de mapa
     final bool? result = await showDialog<bool>(
       context: context,
@@ -92,55 +75,46 @@ Future<void> _createNewOrder() async {
           return _saveNewOrder(description, address, coordinates);
         },
       ),
-    );}
-  
+    );
+  }
+
   // Método atualizado para salvar nova entrega no banco de dados com coordenadas
   Future<bool> _saveNewOrder(
-    String description, 
-    String address, 
-    LatLng? coordinates
-  ) async {
+      String description, String address, LatLng? coordinates) async {
     try {
-      // Criar um ID único para a entrega
-      final String orderId = 'order_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000)}';
-      
-      // Preparar dados para o banco incluindo coordenadas de localização
-      final Map<String, dynamic> newOrder = {
-        'codigo': orderId,
-        'descricao': description,
-        'status': 'Pendente',
-        'data_criacao': DateTime.now().toIso8601String(),
-        'data_atualizacao': DateTime.now().toIso8601String(),
-        'endereco': address,
-        'observacoes': 'Criado pelo cliente',
-        'latitude': coordinates?.latitude,
-        'longitude': coordinates?.longitude,
-      };
-      
-      // Notificar sobre a nova entrega
-      await _notificationService.notifyOrderStatusChange(
-        orderId: orderId,
-        status: 'Pendente',
-        titulo: 'Nova Entrega Criada',
-        mensagem: 'Um novo pedido #$orderId foi criado e está aguardando processamento.',
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      if (userId == null) throw Exception('Usuário não autenticado');
+      final order = Order(
+        id: '', // O backend irá gerar o ID
+        description: description,
+        status: 'PENDENTE',
+        estimatedDelivery: DateTime.now().add(const Duration(days: 1)),
+        driverName: '',
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude,
+        endereco: address,
+        observacoes: 'Criado pelo cliente',
+        cep: null,
+        contatoCliente: null,
+        fotosUrl: null,
+        trackingUrl: null,
+        actualDeliveryTime: null,
       );
-      
-      // Inserir no banco de dados
-      final int result = await _databaseService.inserirEntrega(newOrder);
-      
-      // Verificar se inserção foi bem-sucedida
-      if (result > 0) {
+      final success = await _orderService.createOrder(order);
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Entrega criada com sucesso!'), 
+            content: Text('Entrega criada com sucesso!'),
             backgroundColor: Colors.green,
           ),
         );
+        await _loadOrders();
         return true;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Erro ao criar entrega'), 
+            content: Text('Erro ao criar entrega'),
             backgroundColor: Colors.red,
           ),
         );
@@ -150,75 +124,67 @@ Future<void> _createNewOrder() async {
       print('Erro ao salvar nova entrega: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erro ao criar entrega: $e'), 
+          content: Text('Erro ao criar entrega: $e'),
           backgroundColor: Colors.red,
         ),
       );
       return false;
     }
   }
-  
-  
-  // Método para salvar nova entrega no banco de dados
- 
-  
-  
+
   // Método para excluir uma entrega
   Future<void> _deleteOrder(String orderId) async {
-  // Mostrar diálogo de confirmação
-  final bool? confirm = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Excluir Entrega'),
-      content: const Text('Tem certeza que deseja excluir esta entrega?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancelar'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Excluir'),
-          style: TextButton.styleFrom(foregroundColor: Colors.red),
-        ),
-      ],
-    ),
-  );
-  
-  // Se confirmado, excluir entrega
-  if (confirm == true) {
-    try {
-      // Usa diretamente o orderId como código da entrega
-      final result = await _databaseService.deletarEntrega(orderId);
-      
-      if (result > 0) {
-        // Remover da lista local
-        setState(() {
-          _activeOrders.removeWhere((order) => order.id == orderId);
-        });
-        
+    // Mostrar diálogo de confirmação
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir Entrega'),
+        content: const Text('Tem certeza que deseja excluir esta entrega?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Excluir'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+          ),
+        ],
+      ),
+    );
+
+    // Se confirmado, excluir entrega via backend
+    if (confirm == true) {
+      try {
+        final success = await _orderService.deleteOrder(orderId);
+        if (success) {
+          setState(() {
+            _activeOrders.removeWhere((order) => order.id == orderId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Entrega excluída com sucesso')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Entrega não encontrada ou não pode ser excluída'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        print('Erro ao excluir entrega: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Entrega excluída com sucesso')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Entrega não encontrada ou não pode ser excluída'),
+          SnackBar(
+            content: Text('Erro ao excluir entrega: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
-    } catch (e) {
-      print('Erro ao excluir entrega: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao excluir entrega: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
-}
+
   @override
   void initState() {
     super.initState();
@@ -229,36 +195,38 @@ Future<void> _createNewOrder() async {
 
   @override
   Widget build(BuildContext context) {
-    Widget content = _isLoading 
-      ? const Center(child: LoadingIndicator()) 
-      : _buildActiveOrdersList();
+    Widget content = _isLoading
+        ? const Center(child: LoadingIndicator())
+        : _buildActiveOrdersList();
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      appBar: widget.showAppBar ? AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: const Text(
-          'Minhas Entregas',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history, color: Colors.black87),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ClientHistoryScreen(),
+      appBar: widget.showAppBar
+          ? AppBar(
+              elevation: 0,
+              backgroundColor: Colors.white,
+              title: const Text(
+                'Minhas Entregas',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.bold,
                 ),
-              );
-            },
-          ),
-        ],
-      ) : null,
+              ),
+              automaticallyImplyLeading: false,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.history, color: Colors.black87),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ClientHistoryScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            )
+          : null,
       body: Column(
         children: [
           if (_activeOrders.isEmpty && !_isLoading)
@@ -351,7 +319,8 @@ Future<void> _createNewOrder() async {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                      const Icon(Icons.access_time,
+                          size: 16, color: Colors.grey),
                       const SizedBox(width: 4),
                       Text(
                         'Estimativa: ${_formatDate(order.estimatedDelivery)}',
@@ -396,7 +365,8 @@ Future<void> _createNewOrder() async {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => ClientTrackingScreen(orderId: order.id),
+                              builder: (context) =>
+                                  ClientTrackingScreen(orderId: order.id),
                             ),
                           );
                         },
@@ -455,9 +425,11 @@ Future<void> _createNewOrder() async {
     return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
+
 class CreateOrderDialog extends StatefulWidget {
-  final Future<bool> Function(String description, String address, LatLng? coordinates) onSave;
-  
+  final Future<bool> Function(
+      String description, String address, LatLng? coordinates) onSave;
+
   const CreateOrderDialog({
     Key? key,
     required this.onSave,
@@ -471,17 +443,17 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
-  
+
   bool _isLoading = false;
   LatLng? _selectedLocation;
-  
+
   @override
   void dispose() {
     _descriptionController.dispose();
     _addressController.dispose();
     super.dispose();
   }
-  
+
   Future<void> _openMapPicker() async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
@@ -496,7 +468,7 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
         ),
       ),
     );
-    
+
     // Se o resultado for não nulo, significa que uma localização foi selecionada
     if (result != null) {
       setState(() {
@@ -506,18 +478,18 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
       });
     }
   }
-  
+
   Future<void> _saveOrder() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      
+
       try {
         final result = await widget.onSave(
           _descriptionController.text.trim(),
           _addressController.text.trim(),
           _selectedLocation,
         );
-        
+
         if (result) {
           Navigator.of(context).pop(true); // Retorna true para indicar sucesso
         } else {
@@ -531,7 +503,7 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
       }
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -595,7 +567,8 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                    borderSide:
+                        BorderSide(color: Theme.of(context).primaryColor),
                   ),
                 ),
                 validator: (value) {
@@ -625,7 +598,8 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                      borderSide:
+                          BorderSide(color: Theme.of(context).primaryColor),
                     ),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.map),
@@ -656,7 +630,8 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.check_circle, size: 16, color: Colors.green[700]),
+                      Icon(Icons.check_circle,
+                          size: 16, color: Colors.green[700]),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -679,7 +654,9 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
                 children: [
                   Expanded(
                     child: TextButton(
-                      onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
+                      onPressed: _isLoading
+                          ? null
+                          : () => Navigator.of(context).pop(false),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
@@ -707,7 +684,8 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
                           : const Text('Criar Entrega'),

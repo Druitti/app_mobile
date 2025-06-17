@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:app_mobile/common/model/order.dart';
+import 'package:app_mobile/common/model/order.dart' as app_order;
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
 import 'package:app_mobile/services/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,13 +14,19 @@ class ClientHistoryScreen extends StatefulWidget {
 
 class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
   final DatabaseService _databaseService = DatabaseService();
-  List<Order> _historyOrders = [];
+  List<app_order.Order> _historyOrders = [];
   bool _isLoading = true;
   String? _errorMessage;
-  
+
   // Filtro selecionado
   String _selectedFilter = 'Todos';
-  final List<String> _filterOptions = ['Todos', 'Entregues', 'Cancelados', 'Em Andamento', 'Pendentes'];
+  final List<String> _filterOptions = [
+    'Todos',
+    'Entregues',
+    'Cancelados',
+    'Em Andamento',
+    'Pendentes'
+  ];
 
   @override
   void initState() {
@@ -38,19 +44,22 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
     try {
       // Buscar todas as entregas do banco de dados
       final entregas = await _databaseService.listarEntregasParaApp();
-      
+
       // Converter para o formato Order
-      final orders = entregas.map((e) => Order(
-        id: e['id'],
-        description: e['description'],
-        status: e['status'],
-        estimatedDelivery: DateTime.parse(e['estimatedDelivery']),
-        driverName: e['driverName'],
-        actualDeliveryTime: e['status'] == 'Entregue' || e['status'] == 'Concluída'
-            ? DateTime.parse(e['timestamp'])
-            : null,
-      )).toList();
-      
+      final orders = entregas
+          .map((e) => app_order.Order(
+                id: e['id'],
+                description: e['description'],
+                status: e['status'],
+                estimatedDelivery: DateTime.parse(e['estimatedDelivery']),
+                driverName: e['driverName'],
+                actualDeliveryTime:
+                    e['status'] == 'Entregue' || e['status'] == 'Concluída'
+                        ? DateTime.parse(e['timestamp'])
+                        : null,
+              ))
+          .toList();
+
       setState(() {
         _historyOrders = orders;
         _isLoading = false;
@@ -85,7 +94,10 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
         } else if (status == 'Cancelados') {
           return e['status'] == 'Cancelado';
         } else if (status == 'Em Andamento') {
-          return e['status'] == 'Em Andamento' || e['status'] == 'Em andamento' || e['status'] == 'Em Trânsito' || e['status'] == 'Em trânsito';
+          return e['status'] == 'Em Andamento' ||
+              e['status'] == 'Em andamento' ||
+              e['status'] == 'Em Trânsito' ||
+              e['status'] == 'Em trânsito';
         } else if (status == 'Pendentes') {
           return e['status'] == 'Pendente' || e['status'] == 'Aguardando';
         }
@@ -93,16 +105,19 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
       }).toList();
 
       // Converter para o formato Order
-      final filteredOrders = filteredEntregas.map((e) => Order(
-        id: e['id'],
-        description: e['description'],
-        status: e['status'],
-        estimatedDelivery: DateTime.parse(e['estimatedDelivery']),
-        driverName: e['driverName'],
-        actualDeliveryTime: e['status'] == 'Entregue' || e['status'] == 'Concluída'
-            ? DateTime.parse(e['timestamp'])
-            : null,
-      )).toList();
+      final filteredOrders = filteredEntregas
+          .map((e) => app_order.Order(
+                id: e['id'],
+                description: e['description'],
+                status: e['status'],
+                estimatedDelivery: DateTime.parse(e['estimatedDelivery']),
+                driverName: e['driverName'],
+                actualDeliveryTime:
+                    e['status'] == 'Entregue' || e['status'] == 'Concluída'
+                        ? DateTime.parse(e['timestamp'])
+                        : null,
+              ))
+          .toList();
 
       setState(() {
         _historyOrders = filteredOrders;
@@ -114,6 +129,43 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
         _isLoading = false;
       });
     });
+  }
+
+  // Métodos auxiliares para status
+  String _getStatusText(String status) {
+    switch (status.toLowerCase()) {
+      case 'entregue':
+      case 'concluída':
+        return 'Entregue';
+      case 'cancelado':
+        return 'Cancelado';
+      case 'em andamento':
+      case 'em trânsito':
+        return 'Em Andamento';
+      case 'pendente':
+      case 'aguardando':
+        return 'Pendente';
+      default:
+        return status;
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'entregue':
+      case 'concluída':
+        return Colors.green;
+      case 'cancelado':
+        return Colors.red;
+      case 'em andamento':
+      case 'em trânsito':
+        return Colors.orange;
+      case 'pendente':
+      case 'aguardando':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
   }
 
   // Exibir diálogo de filtro
@@ -136,7 +188,8 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                   children: [
                     const Text(
                       'Filtrar por Status',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -148,20 +201,24 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _filterOptions.map((status) => FilterChip(
-                    label: Text(status),
-                    selected: _selectedFilter == status,
-                    checkmarkColor: Colors.white,
-                    selectedColor: Theme.of(context).primaryColor,
-                    labelStyle: TextStyle(
-                      color: _selectedFilter == status ? Colors.white : null,
-                    ),
-                    onSelected: (selected) {
-                      setModalState(() {
-                        _selectedFilter = status;
-                      });
-                    },
-                  )).toList(),
+                  children: _filterOptions
+                      .map((status) => FilterChip(
+                            label: Text(status),
+                            selected: _selectedFilter == status,
+                            checkmarkColor: Colors.white,
+                            selectedColor: Theme.of(context).primaryColor,
+                            labelStyle: TextStyle(
+                              color: _selectedFilter == status
+                                  ? Colors.white
+                                  : null,
+                            ),
+                            onSelected: (selected) {
+                              setModalState(() {
+                                _selectedFilter = status;
+                              });
+                            },
+                          ))
+                      .toList(),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
@@ -183,7 +240,7 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
   }
 
   // Exibir detalhes do pedido
-  void _showOrderDetails(Order order) {
+  void _showOrderDetails(app_order.Order order) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -224,7 +281,8 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Theme.of(context).primaryColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -289,7 +347,8 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       // Cabeçalho do pedido
                                       Row(
@@ -298,18 +357,23 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                                             width: 40,
                                             height: 40,
                                             decoration: BoxDecoration(
-                                              color: Theme.of(context).primaryColor.withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(12),
+                                              color: Theme.of(context)
+                                                  .primaryColor
+                                                  .withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                             ),
                                             child: Icon(
                                               Icons.local_shipping,
-                                              color: Theme.of(context).primaryColor,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
                                             ),
                                           ),
                                           const SizedBox(width: 16),
                                           Expanded(
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 const Text(
                                                   'Pedido',
@@ -352,7 +416,10 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                                             child: _buildInfoCard(
                                               icon: Icons.access_time,
                                               title: 'Criado em',
-                                              value: DateFormat('dd/MM/yyyy HH:mm').format(order.estimatedDelivery),
+                                              value: DateFormat(
+                                                      'dd/MM/yyyy HH:mm')
+                                                  .format(
+                                                      order.estimatedDelivery),
                                             ),
                                           ),
                                         ],
@@ -364,13 +431,16 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                                       SizedBox(
                                         width: double.infinity,
                                         child: OutlinedButton.icon(
-                                          onPressed: () => _showOrderDetails(order),
+                                          onPressed: () =>
+                                              _showOrderDetails(order),
                                           icon: const Icon(Icons.visibility),
                                           label: const Text('Ver Detalhes'),
                                           style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 12),
                                             shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                             ),
                                           ),
                                         ),
@@ -493,36 +563,6 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'pending':
-        return Colors.orange;
-      case 'in_progress':
-        return Colors.blue;
-      case 'delivered':
-        return Colors.green;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'pending':
-        return 'Pendente';
-      case 'in_progress':
-        return 'Em Andamento';
-      case 'delivered':
-        return 'Entregue';
-      case 'cancelled':
-        return 'Cancelado';
-      default:
-        return status;
-    }
-  }
-
   String _getFilterText(String filter) {
     switch (filter) {
       case 'all':
@@ -545,16 +585,17 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
 class _OrderDetailsScreen extends StatefulWidget {
   final String orderId;
 
-  const _OrderDetailsScreen({required this.orderId});
+  const _OrderDetailsScreen({Key? key, required this.orderId})
+      : super(key: key);
 
   @override
   State<_OrderDetailsScreen> createState() => _OrderDetailsScreenState();
 }
 
 class _OrderDetailsScreenState extends State<_OrderDetailsScreen> {
-  bool _isLoading = true;
-  String? _error;
   Map<String, dynamic>? _orderDetails;
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -564,540 +605,172 @@ class _OrderDetailsScreenState extends State<_OrderDetailsScreen> {
 
   Future<void> _loadOrderDetails() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
       final db = FirebaseFirestore.instance;
-      final orderDoc = await db.collection('orders').doc(widget.orderId).get();
+      final doc = await db.collection('orders').doc(widget.orderId).get();
 
-      if (!orderDoc.exists) {
+      if (doc.exists) {
         setState(() {
-          _error = 'Pedido não encontrado';
+          _orderDetails = doc.data();
           _isLoading = false;
         });
-        return;
+      } else {
+        setState(() {
+          _errorMessage = 'Pedido não encontrado';
+          _isLoading = false;
+        });
       }
-
-      setState(() {
-        _orderDetails = orderDoc.data();
-        _isLoading = false;
-      });
     } catch (e) {
       setState(() {
-        _error = 'Erro ao carregar detalhes do pedido';
+        _errorMessage = 'Erro ao carregar detalhes: $e';
         _isLoading = false;
       });
     }
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: Colors.red[50],
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.error_outline,
-              size: 40,
-              color: Colors.red[700],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _error ?? 'Erro desconhecido',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.red[700],
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _loadOrderDetails,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Tentar Novamente'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red[700],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOrderDetails() {
-    if (_orderDetails == null) return const SizedBox.shrink();
-
-    final status = _orderDetails!['status'] as String;
-    final createdAt = (_orderDetails!['createdAt'] as Timestamp).toDate();
-    final updatedAt = (_orderDetails!['updatedAt'] as Timestamp).toDate();
-    final description = _orderDetails!['description'] as String;
-    final address = _orderDetails!['address'] as String;
-    final driver = _orderDetails!['driver'] as Map<String, dynamic>?;
-    final history = _orderDetails!['history'] as List<dynamic>?;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Cabeçalho com status
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.local_shipping,
-                        color: Theme.of(context).primaryColor,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Status do Pedido',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getStatusText(status),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _buildStatusChip(status),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _buildInfoCard(
-                      icon: Icons.access_time,
-                      title: 'Criado em',
-                      value: DateFormat('dd/MM/yyyy HH:mm').format(createdAt),
-                    ),
-                    const SizedBox(width: 16),
-                    _buildInfoCard(
-                      icon: Icons.update,
-                      title: 'Atualizado em',
-                      value: DateFormat('dd/MM/yyyy HH:mm').format(updatedAt),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Detalhes do pedido
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Detalhes do Pedido',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildInfoSection(
-                  icon: Icons.description,
-                  title: 'Descrição',
-                  value: description,
-                ),
-                const SizedBox(height: 16),
-                _buildInfoSection(
-                  icon: Icons.location_on,
-                  title: 'Endereço de Entrega',
-                  value: address,
-                ),
-              ],
-            ),
-          ),
-
-          if (driver != null) ...[
-            const SizedBox(height: 24),
-
-            // Informações do motorista
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Motorista',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.person,
-                          color: Colors.blue[700],
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              driver['name'] as String,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              driver['phone'] as String,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          if (history != null && history.isNotEmpty) ...[
-            const SizedBox(height: 24),
-
-            // Histórico do pedido
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Histórico do Pedido',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: history.length,
-                    separatorBuilder: (context, index) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final item = history[index] as Map<String, dynamic>;
-                      final timestamp = (item['timestamp'] as Timestamp).toDate();
-                      final status = item['status'] as String;
-                      final message = item['message'] as String;
-
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: _getStatusColor(status).withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              _getStatusIcon(status),
-                              color: _getStatusColor(status),
-                              size: 16,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _getStatusText(status),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  message,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  DateFormat('dd/MM/yyyy HH:mm').format(timestamp),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[500],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: Colors.grey[600],
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoSection({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: Theme.of(context).primaryColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: Theme.of(context).primaryColor,
-            size: 16,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatusChip(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: _getStatusColor(status).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        _getStatusText(status),
-        style: TextStyle(
-          color: _getStatusColor(status),
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'pending':
-        return Icons.schedule;
-      case 'in_progress':
-        return Icons.local_shipping;
-      case 'delivered':
-        return Icons.check_circle;
-      case 'cancelled':
-        return Icons.cancel;
+  String _getStatusText(String status) {
+    switch (status.toLowerCase()) {
+      case 'entregue':
+      case 'concluída':
+        return 'Entregue';
+      case 'cancelado':
+        return 'Cancelado';
+      case 'em andamento':
+      case 'em trânsito':
+        return 'Em Andamento';
+      case 'pendente':
+      case 'aguardando':
+        return 'Pendente';
       default:
-        return Icons.info;
+        return status;
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'entregue':
+      case 'concluída':
+        return Colors.green;
+      case 'cancelado':
+        return Colors.red;
+      case 'em andamento':
+      case 'em trânsito':
+        return Colors.orange;
+      case 'pendente':
+      case 'aguardando':
+        return Colors.blue;
+      default:
+        return Colors.grey;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: const Text(
-          'Detalhes do Pedido',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.of(context).pop(),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Detalhes do Pedido'),
+        ),
+        body: Center(
+          child: Text(_errorMessage!),
+        ),
+      );
+    }
+
+    if (_orderDetails == null) {
+      return const Scaffold(
+        body: Center(
+          child: Text('Pedido não encontrado'),
+        ),
+      );
+    }
+
+    final createdAt = (_orderDetails!['createdAt'] as Timestamp).toDate();
+    final updatedAt = (_orderDetails!['updatedAt'] as Timestamp).toDate();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Detalhes do Pedido'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pedido #${_orderDetails!['id']}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Status: ${_getStatusText(_orderDetails!['status'])}',
+                      style: TextStyle(
+                        color: _getStatusColor(_orderDetails!['status']),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                        'Criado em: ${DateFormat('dd/MM/yyyy HH:mm').format(createdAt)}'),
+                    Text(
+                        'Última atualização: ${DateFormat('dd/MM/yyyy HH:mm').format(updatedAt)}'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_orderDetails!['description'] != null) ...[
+              const Text(
+                'Descrição',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(_orderDetails!['description']),
+              const SizedBox(height: 16),
+            ],
+            if (_orderDetails!['driverName'] != null) ...[
+              const Text(
+                'Motorista',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(_orderDetails!['driverName']),
+              const SizedBox(height: 16),
+            ],
+            if (_orderDetails!['endereco'] != null) ...[
+              const Text(
+                'Endereço',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(_orderDetails!['endereco']),
+              const SizedBox(height: 16),
+            ],
+            if (_orderDetails!['observacoes'] != null) ...[
+              const Text(
+                'Observações',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(_orderDetails!['observacoes']),
+              const SizedBox(height: 16),
+            ],
+          ],
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? _buildErrorState()
-              : _buildOrderDetails(),
     );
   }
 }

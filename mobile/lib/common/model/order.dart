@@ -36,26 +36,29 @@ class Order extends Equatable {
   });
 
   // Construtor de fábrica para criar Order a partir de um Map (ex: JSON da API)
- factory Order.fromJson(Map<String, dynamic> json) {
+  factory Order.fromJson(Map<String, dynamic> json) {
     return Order(
-      id: json['id'] as String,
-      description: json['description'] as String,
-      status: json['status'] as String,
-      estimatedDelivery: DateTime.parse(json['estimatedDelivery'] as String),
-      driverName: json['driverName'] as String,
+      id: json['id']?.toString() ?? json['codigo']?.toString() ?? '',
+      description: json['description'] ?? json['descricao'] ?? '',
+      status: json['status'] ?? '',
+      estimatedDelivery: DateTime.parse(json['estimatedDelivery'] ?? json['estimated_delivery'] ?? DateTime.now().toIso8601String()),
+      driverName: json['driverName'] ?? json['driver_name'] ?? '',
       actualDeliveryTime: json['actualDeliveryTime'] != null
-          ? DateTime.parse(json['actualDeliveryTime'] as String)
-          : null,
-      latitude: json['latitude'] as double?,
-      longitude: json['longitude'] as double?,
-      endereco: json['endereco'] as String?,
-      cep: json['cep'] as String?,
-      contatoCliente: json['contatoCliente'] as String?,
-      observacoes: json['observacoes'] as String?,
-      fotosUrl: json['fotosUrl'] as String?,
+          ? DateTime.parse(json['actualDeliveryTime'])
+          : (json['actual_delivery_time'] != null ? DateTime.parse(json['actual_delivery_time']) : null),
+      latitude: (json['latitude'] is int)
+          ? (json['latitude'] as int).toDouble()
+          : json['latitude'] as double?,
+      longitude: (json['longitude'] is int)
+          ? (json['longitude'] as int).toDouble()
+          : json['longitude'] as double?,
+      endereco: json['endereco'],
+      cep: json['cep'],
+      contatoCliente: json['contatoCliente'] ?? json['contato_cliente'],
+      observacoes: json['observacoes'],
+      fotosUrl: json['fotosUrl'] ?? json['fotos_url'],
     );
   }
-
 
   // Método para converter Order em um Map (útil para testes ou outras operações)
   Map<String, dynamic> toJson() {
@@ -63,10 +66,9 @@ class Order extends Equatable {
       'id': id,
       'description': description,
       'status': status,
-      'estimated_delivery': estimatedDelivery.toIso8601String(),
-      'tracking_url': trackingUrl,
-      'driver_name': driverName,
-      'actual_delivery_time': actualDeliveryTime?.toIso8601String(),
+      'estimatedDelivery': estimatedDelivery.toIso8601String(),
+      'driverName': driverName,
+      'actualDeliveryTime': actualDeliveryTime?.toIso8601String(),
       'latitude': latitude,
       'longitude': longitude,
       'endereco': endereco,

@@ -158,6 +158,7 @@ Cada serviço foi criado no **Spring Initializr** com as seguintes configuraçõ
 </dependency>
 ```
 
+
 ## 🎮 Como Executar
 
 ### **Opção 1: Execução Automática (Recomendado)**
@@ -226,6 +227,10 @@ O sistema inicia automaticamente na seguinte ordem:
 |--------|-----------|------|
 | `stop-all.ps1` | **Parar tudo** | Para todos os serviços e containers |
 
+## Teste das API´s com swagger
+
+Após rodar um microserviço específico, basta conferir no log de run a porta que esta sendo utilizada. 
+Acesse pelo link http://localhost:[PORTA]/swagger-ui/index.html#/
 
 ## 🧪 Testes
 
@@ -235,6 +240,7 @@ O sistema inicia automaticamente na seguinte ordem:
 # Teste completo das rotas HTTP
 .\scripts\test-api-routes.ps1
 ```
+
 
 **O que testa:**
 - ✅ Health checks do sistema

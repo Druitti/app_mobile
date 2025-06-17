@@ -4,6 +4,7 @@ import 'package:app_mobile/main.dart';
 import 'package:app_mobile/services/database_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../providers/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,8 +27,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _carregarConfiguracoes() async {
     final isDarkMode = await _databaseService.buscarConfiguracao('isDarkMode');
-    final notificacoes = await _databaseService.buscarConfiguracao('notificacoes');
-    final rastreamento = await _databaseService.buscarConfiguracao('rastreamento');
+    final notificacoes =
+        await _databaseService.buscarConfiguracao('notificacoes');
+    final rastreamento =
+        await _databaseService.buscarConfiguracao('rastreamento');
 
     setState(() {
       _isDarkMode = isDarkMode == 'true';
@@ -59,14 +62,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: Colors.white,
               ),
             ),
-            title: Text(isMotorista ? 'Perfil de Motorista' : 'Perfil de Cliente'),
-            subtitle: Text(isMotorista 
-              ? 'Configurações específicas para motoristas' 
-              : 'Configurações específicas para clientes'
-            ),
+            title:
+                Text(isMotorista ? 'Perfil de Motorista' : 'Perfil de Cliente'),
+            subtitle: Text(isMotorista
+                ? 'Configurações específicas para motoristas'
+                : 'Configurações específicas para clientes'),
           ),
           const Divider(),
-          
+
           // Configurações gerais
           const Padding(
             padding: EdgeInsets.all(16.0),
@@ -75,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-          
+
           SwitchListTile(
             title: const Text('Tema Escuro'),
             subtitle: const Text('Ativar modo escuro'),
@@ -85,12 +88,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _isDarkMode = value;
               });
               _salvarConfiguracao('isDarkMode', value.toString());
-              context.read<ThemeProvider>().toggleTheme();
+              context.read<ThemeProvider>().toggleTheme(_isDarkMode);
             },
           ),
-          
+
           const Divider(),
-          
+
           SwitchListTile(
             title: const Text('Notificações'),
             subtitle: const Text('Receber notificações de status'),
@@ -102,13 +105,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _salvarConfiguracao('notificacoes', value.toString());
             },
           ),
-          
+
           // Configurações específicas para motoristas ou clientes
           if (isMotorista) ...[
             const Divider(),
             SwitchListTile(
               title: const Text('Compartilhar Localização'),
-              subtitle: const Text('Permitir compartilhamento de localização em tempo real'),
+              subtitle: const Text(
+                  'Permitir compartilhamento de localização em tempo real'),
               value: _rastreamentoAtivo,
               onChanged: (bool value) {
                 setState(() {
@@ -131,9 +135,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ],
-          
+
           const Divider(),
-          
+
           // Opções avançadas
           const Padding(
             padding: EdgeInsets.all(16.0),
@@ -142,7 +146,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-          
+
           ListTile(
             title: const Text('Alternar Tipo de Usuário'),
             subtitle: const Text('Mudar entre cliente e motorista'),
@@ -152,11 +156,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 context: context,
                 builder: (context) => AlertDialog(
                   title: const Text('Alternar Tipo de Usuário'),
-                  content: Text(
-                    isMotorista 
-                      ? 'Deseja mudar para o modo Cliente?' 
-                      : 'Deseja mudar para o modo Motorista?'
-                  ),
+                  content: Text(isMotorista
+                      ? 'Deseja mudar para o modo Cliente?'
+                      : 'Deseja mudar para o modo Motorista?'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
@@ -168,11 +170,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         context.read<UserTypeProvider>().toggleUserType();
                         // Navegar para a tela home apropriada
                         Navigator.pushReplacementNamed(
-                          context, 
-                          context.read<UserTypeProvider>().isMotorista 
-                            ? '/driver_home' 
-                            : '/client_home'
-                        );
+                            context,
+                            context.read<UserTypeProvider>().isMotorista
+                                ? '/driver_home'
+                                : '/client_home');
                       },
                       child: const Text('Confirmar'),
                     ),
@@ -181,9 +182,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
-          
+
           const Divider(),
-          
+
           ListTile(
             title: const Text('Limpar Dados'),
             subtitle: const Text('Remover todos os dados locais'),
@@ -206,7 +207,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         // Implementar limpeza de dados
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Dados locais removidos')),
+                          const SnackBar(
+                              content: Text('Dados locais removidos')),
                         );
                       },
                       child: const Text('Confirmar'),
@@ -216,9 +218,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
-          
+
           const Divider(),
-          
+
           // Sobre
           ListTile(
             title: const Text('Sobre'),
@@ -238,12 +240,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
-          
+
           // Logout
           const Divider(),
-         
-          
-          
+
           ListTile(
             title: const Text('Sair do Aplicativo'),
             trailing: const Icon(Icons.exit_to_app),
@@ -271,19 +271,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           const Divider(),
-           ListTile(
-        title: const Text('Diagnóstico do Banco de Dados'),
-        subtitle: const Text('Ferramentas para desenvolvedores'),
-        leading: const Icon(Icons.storage),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const DatabaseDiagnosticScreen()),
-          );
-        },
-      ),
+          ListTile(
+            title: const Text('Diagnóstico do Banco de Dados'),
+            subtitle: const Text('Ferramentas para desenvolvedores'),
+            leading: const Icon(Icons.storage),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const DatabaseDiagnosticScreen()),
+              );
+            },
+          ),
         ],
       ),
     );
   }
-  }
+}

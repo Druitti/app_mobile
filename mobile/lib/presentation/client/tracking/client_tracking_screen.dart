@@ -5,11 +5,13 @@ import 'package:app_mobile/common/model/order.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
 import 'package:app_mobile/services/database_service.dart';
 import 'package:app_mobile/services/location_service.dart';
+import 'package:app_mobile/services/tracking_service.dart';
 
 class ClientTrackingScreen extends StatefulWidget {
   final String orderId;
 
-  const ClientTrackingScreen({Key? key, required this.orderId}) : super(key: key);
+  const ClientTrackingScreen({Key? key, required this.orderId})
+      : super(key: key);
 
   @override
   State<ClientTrackingScreen> createState() => _ClientTrackingScreenState();
@@ -19,8 +21,9 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
   // Controladores e serviços
   final DatabaseService _databaseService = DatabaseService();
   final LocationService _locationService = LocationService();
+  final TrackingService _trackingService = TrackingService();
   GoogleMapController? _mapController;
-  
+
   // Estado
   bool _isLoading = true;
   Order? _order;
@@ -31,7 +34,7 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
   bool _followVehicle = true;
   String _distanceText = '';
   String _timeText = '';
-  
+
   // Simulação de atualização de localização
   int _simulationStep = 0;
   final List<LatLng> _simulatedRoute = [
@@ -63,7 +66,7 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
     setState(() => _isLoading = true);
     try {
       final pedidoData = await _databaseService.buscarEntrega(widget.orderId);
-      
+
       if (pedidoData != null) {
         setState(() {
           _order = Order.fromJson(pedidoData);
@@ -105,7 +108,7 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
 
   // Iniciar timer para atualização de localização
   void _iniciarAtualizacaoLocalizacao() {
-    // Simular atualizações de localização a cada 5 segundos
+    // Atualizar localização do entregador a cada 5 segundos usando o backend
     _locationUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (mounted) {
         _atualizarLocalizacaoEntregador();
@@ -113,70 +116,63 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
     });
   }
 
-  // Atualização da localização do entregador (simulada)
-  void _atualizarLocalizacaoEntregador() {
-    if (_simulationStep < _simulatedRoute.length - 1) {
-      _simulationStep++;
-      final currentLocation = _simulatedRoute[_simulationStep];
-      
-      setState(() {
-        // Atualizar marcador do entregador
-        _markers = _markers.where((m) => m.markerId.value != 'entregador').toSet();
-        _markers.add(
-          Marker(
-            markerId: const MarkerId('entregador'),
-            position: currentLocation,
-            infoWindow: const InfoWindow(
-              title: 'Entregador',
-              snippet: 'Em movimento',
+  // Atualização da localização do entregador (backend)
+  Future<void> _atualizarLocalizacaoEntregador() async {
+    try {
+      final current = await _trackingService.getCurrentLocation(widget.orderId);
+      if (current != null) {
+        setState(() {
+          _markers =
+              _markers.where((m) => m.markerId.value != 'entregador').toSet();
+          _markers.add(
+            Marker(
+              markerId: const MarkerId('entregador'),
+              position: current,
+              infoWindow: const InfoWindow(
+                title: 'Entregador',
+                snippet: 'Em movimento',
+              ),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueAzure),
             ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-          ),
-        );
-        
-        // Atualizar ordem se existir
-        if (_order != null) {
-          _order = _order!.copyWith(latitude: currentLocation.latitude, longitude: currentLocation.longitude);
+          );
+        });
+        if (_followVehicle && _mapController != null) {
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLng(current),
+          );
         }
-      });
-      
-      // Atualizar polylines com a rota percorrida
-      _atualizarPolylines();
-      
-      // Atualizar informações de distância e tempo
-      _atualizarInfoEntrega();
-      
-      // Se estiver seguindo o veículo, centralizar no mapa
-      if (_followVehicle && _mapController != null) {
-        _mapController!.animateCamera(
-          CameraUpdate.newLatLng(currentLocation),
-        );
       }
-    } else {
-      // Chegou ao destino, parar a simulação
-      _locationUpdateTimer?.cancel();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Entrega concluída!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      
-      // Atualizar status do pedido para "Entregue"
+    } catch (e) {
+      print('Erro ao atualizar localização do entregador: $e');
+    }
+  }
+
+  // Buscar histórico de localizações do backend
+  Future<void> _atualizarPolylines() async {
+    try {
+      final history = await _trackingService.getLocationHistory(widget.orderId);
       setState(() {
-        if (_order != null) {
-          _order = _order!.copyWith(status: 'Entregue');
-        }
+        _polylines = {
+          Polyline(
+            polylineId: const PolylineId('histórico'),
+            color: Colors.blue,
+            width: 5,
+            points: history,
+          ),
+        };
       });
+    } catch (e) {
+      print('Erro ao buscar histórico de localizações: $e');
     }
   }
 
   // Atualiza marcadores no mapa
   void _atualizarMarcadores() {
     if (_order == null) return;
-    
+
     Set<Marker> markers = {};
-    
+
     // Marcador da localização do usuário
     if (_userLocation != null) {
       markers.add(
@@ -184,11 +180,12 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
           markerId: const MarkerId('user_location'),
           position: _userLocation!,
           infoWindow: const InfoWindow(title: 'Sua localização'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          icon:
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
         ),
       );
     }
-    
+
     // Marcador do destino da entrega
     if (_order!.latitude != null && _order!.longitude != null) {
       markers.add(
@@ -203,12 +200,12 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
         ),
       );
     }
-    
+
     // Marcador do entregador (posição inicial ou simulada)
-    final currentLocation = _simulationStep > 0 
+    final currentLocation = _simulationStep > 0
         ? _simulatedRoute[_simulationStep]
         : _simulatedRoute[0];
-        
+
     markers.add(
       Marker(
         markerId: const MarkerId('entregador'),
@@ -220,28 +217,9 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
       ),
     );
-    
+
     setState(() {
       _markers = markers;
-    });
-  }
-
-  // Atualiza as linhas da rota no mapa
-  void _atualizarPolylines() {
-    if (_simulationStep <= 0) return;
-    
-    // Criar polyline para a rota percorrida
-    List<LatLng> routePoints = _simulatedRoute.sublist(0, _simulationStep + 1);
-    
-    setState(() {
-      _polylines = {
-        Polyline(
-          polylineId: const PolylineId('rota_entrega'),
-          points: routePoints,
-          color: Colors.blue,
-          width: 5,
-        ),
-      };
     });
   }
 
@@ -251,15 +229,16 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
       // Calcular distância até o destino
       final currentLocation = _simulatedRoute[_simulationStep];
       final destination = LatLng(_order!.latitude ?? 0, _order!.longitude ?? 0);
-      final distance = _locationService.calculateDistance(currentLocation, destination);
-      
+      final distance =
+          _locationService.calculateDistance(currentLocation, destination);
+
       // Calcular tempo estimado (velocidade média de 30km/h)
       final timeInMinutes = (distance / 500).round(); // Simulação simplificada
-      
+
       setState(() {
         _distanceText = _locationService.formatDistance(distance);
-        _timeText = timeInMinutes <= 1 
-            ? 'Chegando' 
+        _timeText = timeInMinutes <= 1
+            ? 'Chegando'
             : 'Aprox. $timeInMinutes ${timeInMinutes == 1 ? 'minuto' : 'minutos'}';
       });
     }
@@ -267,10 +246,10 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
 
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
-    
+
     // Definir estilo de mapa (opcional)
     // _mapController?.setMapStyle('[]');
-    
+
     // Centralizar em um ponto que mostre tanto usuário quanto entregador
     _centralizarMapa();
   }
@@ -278,22 +257,26 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
   // Centraliza o mapa para mostrar todos os pontos relevantes
   void _centralizarMapa() {
     if (_mapController == null) return;
-    
+
     if (_markers.isNotEmpty) {
       // Calcular os bounds para incluir todos os marcadores
       double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-      
+
       for (var marker in _markers) {
-        if (marker.position.latitude < minLat) minLat = marker.position.latitude;
-        if (marker.position.latitude > maxLat) maxLat = marker.position.latitude;
-        if (marker.position.longitude < minLng) minLng = marker.position.longitude;
-        if (marker.position.longitude > maxLng) maxLng = marker.position.longitude;
+        if (marker.position.latitude < minLat)
+          minLat = marker.position.latitude;
+        if (marker.position.latitude > maxLat)
+          maxLat = marker.position.latitude;
+        if (marker.position.longitude < minLng)
+          minLng = marker.position.longitude;
+        if (marker.position.longitude > maxLng)
+          maxLng = marker.position.longitude;
       }
-      
+
       // Adicionar um padding
       final latPadding = (maxLat - minLat) * 0.2;
       final lngPadding = (maxLng - minLng) * 0.2;
-      
+
       _mapController!.animateCamera(
         CameraUpdate.newLatLngBounds(
           LatLngBounds(
@@ -312,7 +295,7 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Atualizando localização...')),
     );
-    
+
     // Forçar uma atualização imediata
     _atualizarLocalizacaoEntregador();
   }
@@ -366,7 +349,8 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(24)),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.1),
@@ -399,7 +383,9 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                                   width: 48,
                                   height: 48,
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                    color: Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Icon(
@@ -411,7 +397,8 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Status do Pedido',
@@ -485,7 +472,8 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Endereço de Entrega',
@@ -496,7 +484,8 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          _order!.endereco ?? _order!.description,
+                                          _order!.endereco ??
+                                              _order!.description,
                                           style: const TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w500,
@@ -516,19 +505,26 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                               width: double.infinity,
                               child: ElevatedButton.icon(
                                 onPressed: () {
-                                  setState(() => _followVehicle = !_followVehicle);
-                                  if (_followVehicle && _mapController != null) {
-                                    final currentLocation = _simulatedRoute[_simulationStep];
+                                  setState(
+                                      () => _followVehicle = !_followVehicle);
+                                  if (_followVehicle &&
+                                      _mapController != null) {
+                                    final currentLocation =
+                                        _simulatedRoute[_simulationStep];
                                     _mapController!.animateCamera(
                                       CameraUpdate.newLatLng(currentLocation),
                                     );
                                   }
                                 },
                                 icon: Icon(
-                                  _followVehicle ? Icons.gps_fixed : Icons.gps_not_fixed,
+                                  _followVehicle
+                                      ? Icons.gps_fixed
+                                      : Icons.gps_not_fixed,
                                 ),
                                 label: Text(
-                                  _followVehicle ? 'Seguindo Entregador' : 'Seguir Entregador',
+                                  _followVehicle
+                                      ? 'Seguindo Entregador'
+                                      : 'Seguir Entregador',
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _followVehicle
@@ -537,7 +533,8 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                                   foregroundColor: _followVehicle
                                       ? Colors.white
                                       : Colors.grey[700],
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),

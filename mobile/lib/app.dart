@@ -18,7 +18,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_mobile/presentation/auth/login_screen.dart';
 import 'package:app_mobile/presentation/auth/register_screen.dart';
 import 'package:app_mobile/presentation/auth/forgot_password_screen.dart';
-
+import 'package:flutter/foundation.dart';
+import 'providers/theme_provider.dart';
 
 @pragma('vm:entry-point')
 Future<void> _onBackgroundMessage(RemoteMessage message) async {
@@ -26,44 +27,6 @@ Future<void> _onBackgroundMessage(RemoteMessage message) async {
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Inicializar Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  // Inicializar serviço de notificações
-  try {
-    final pushService = PushNotificationService();
-    await pushService.initialize();
-    print('Serviço de notificações inicializado com sucesso');
-    
-    // Configurar manipulador de mensagens em background
-    FirebaseMessaging.onBackgroundMessage(_onBackgroundMessage);
-  } catch (e) {
-    print('Erro ao inicializar serviço de notificações: $e');
-  }
-  
-  // Obter preferências compartilhadas
-  final prefs = await SharedPreferences.getInstance();
-  
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create: (_) => ThemeProvider(prefs),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => UserTypeProvider(),
-        ),
-      ],
-      child: const MyApp(),
-    ),
-  );
-}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -85,43 +48,32 @@ class MyApp extends StatelessWidget {
         ),
       ),
       themeMode: context.watch<ThemeProvider>().themeMode,
-      
-      // Definição das rotas do aplicativo
-      initialRoute: '/login',
-      
-      
-      // Rotas estáticas definidas aqui
+      home: const LoginScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/forgot-password': (context) => const ForgotPasswordScreen(),
         '/home': (context) => const ClientHomeScreen(),
-        '/tracking': (context) => const ClientTrackingScreen(),
         '/history': (context) => const ClientHistoryScreen(),
         '/client_home': (context) => const ClientHomeScreen(),
         '/driver_home': (context) => const DriverHomeScreen(),
         '/client_history': (context) => const ClientHistoryScreen(),
         '/driver_completed': (context) => const CompletedDeliveriesScreen(),
         '/settings': (context) => const SettingsScreen(),
-          
-    
-
-       
       },
-      
-      // Rotas dinâmicas que precisam de argumentos
       onGenerateRoute: (settings) {
-        print('Gerando rota para: ${settings.name} com argumentos: ${settings.arguments}');
-        
+        print(
+            'Gerando rota para: ${settings.name} com argumentos: ${settings.arguments}');
+
         // Rota para rastreamento de cliente
         if (settings.name == '/client_tracking') {
           final String orderId = settings.arguments as String;
           return MaterialPageRoute(
-            settings: settings, // Importante passar as settings!
+            settings: settings,
             builder: (context) => ClientTrackingScreen(orderId: orderId),
           );
         }
-        
+
         // Rota para navegação de entrega
         else if (settings.name == '/delivery_navigation') {
           final Delivery delivery = settings.arguments as Delivery;
@@ -130,7 +82,7 @@ class MyApp extends StatelessWidget {
             builder: (context) => DeliveryNavigationScreen(delivery: delivery),
           );
         }
-        
+
         // Rota para atualização de status
         else if (settings.name == '/update_status') {
           final Delivery delivery = settings.arguments as Delivery;
@@ -139,12 +91,10 @@ class MyApp extends StatelessWidget {
             builder: (context) => UpdateStatusScreen(delivery: delivery),
           );
         }
-        
+
         // Rota desconhecida
         return null;
       },
-      
-      // Tratamento para rotas desconhecidas
       onUnknownRoute: (settings) {
         print('Rota desconhecida: ${settings.name}');
         return MaterialPageRoute(
@@ -160,26 +110,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class ThemeProvider extends ChangeNotifier {
-  final SharedPreferences _prefs;
-  ThemeMode _themeMode;
-
-  ThemeProvider(this._prefs) : _themeMode = _loadThemeMode(_prefs);
-
-  static ThemeMode _loadThemeMode(SharedPreferences prefs) {
-    final isDark = prefs.getBool('isDarkMode') ?? false;
-    return isDark ? ThemeMode.dark : ThemeMode.light;
-  }
-
-  ThemeMode get themeMode => _themeMode;
-
-  void toggleTheme() {
-    _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-    _prefs.setBool('isDarkMode', _themeMode == ThemeMode.dark);
-    notifyListeners();
-  }
-}
-
 class UserTypeProvider extends ChangeNotifier {
   bool _isMotorista = false;
 
@@ -189,7 +119,7 @@ class UserTypeProvider extends ChangeNotifier {
     _isMotorista = !_isMotorista;
     notifyListeners();
   }
-  
+
   void setUserType(bool isMotorista) {
     _isMotorista = isMotorista;
     notifyListeners();
@@ -213,7 +143,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _navigateToHome() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-    
+
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => const UserSelectionScreen(),
@@ -265,7 +195,8 @@ class UserSelectionScreen extends StatelessWidget {
             const SizedBox(height: 30),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
               ),
               child: const Text('Entrar como Cliente'),
               onPressed: () {
@@ -276,7 +207,8 @@ class UserSelectionScreen extends StatelessWidget {
             const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
               ),
               child: const Text('Entrar como Motorista'),
               onPressed: () {

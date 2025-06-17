@@ -66,6 +66,8 @@ dependencies:
   # Notificações
   firebase_core: ^2.24.2
   firebase_messaging: ^14.7.10
+  cloud_firestore: ^4.15.5
+  firebase_auth: ^4.17.4
   flutter_local_notifications: ^16.3.0
   
   # Utilitários
