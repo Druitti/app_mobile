@@ -227,6 +227,10 @@ O sistema inicia automaticamente na seguinte ordem:
 |--------|-----------|------|
 | `stop-all.ps1` | **Parar tudo** | Para todos os serviços e containers |
 
+## Teste das API´s com swagger
+
+Após rodar um microserviço específico, basta conferir no log de run a porta que esta sendo utilizada. 
+Acesse pelo link http://localhost:[PORTA]/swagger-ui/index.html#/
 
 ## 🧪 Testes
 

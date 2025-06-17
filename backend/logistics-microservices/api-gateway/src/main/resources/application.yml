@@ -6,6 +6,9 @@ spring:
     name: api-gateway
   cloud:
     gateway:
+    
+      routes:
+       
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
       globalcors:
@@ -41,6 +44,20 @@ logging:
     org.springframework.cloud.gateway: DEBUG
     org.springframework.cloud.loadbalancer: DEBUG
 
+# Configuração do Swagger/OpenAPI
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    config-url: /v3/api-docs/swagger-config
+    urls:
+      - name: Gateway
+        url: /v3/api-docs
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  show-actuator: true
+
 ---
 spring:
   config:
@@ -51,3 +68,16 @@ eureka:
   client:
     service-url:
       default-zone: http://eureka-server:8761/eureka
+
+# Configuração específica para Docker
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    config-url: /v3/api-docs/swagger-config
+    urls:
+      - name: Gateway
+        url: /v3/api-docs
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
