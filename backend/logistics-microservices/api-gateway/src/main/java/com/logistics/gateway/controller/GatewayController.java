@@ -1,5 +1,9 @@
 package com.logistics.gateway.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,9 +15,14 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/gateway")
+@Tag(name = "Gateway", description = "API Gateway endpoints para monitoramento e informações")
 public class GatewayController {
     
     @GetMapping("/health")
+    @Operation(summary = "Health Check", description = "Verifica o status de saúde do API Gateway")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Gateway está funcionando corretamente")
+    })
     public ResponseEntity<Map<String, Object>> health() {
         Map<String, Object> response = new HashMap<>();
         response.put("status", "UP");
@@ -25,6 +34,10 @@ public class GatewayController {
     }
     
     @GetMapping("/info")
+    @Operation(summary = "Gateway Info", description = "Informações sobre o Gateway e suas rotas disponíveis")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Informações do Gateway retornadas com sucesso")
+    })
     public ResponseEntity<Map<String, Object>> info() {
         Map<String, Object> response = new HashMap<>();
         response.put("name", "Logistics API Gateway");
