@@ -158,6 +158,7 @@ Cada serviço foi criado no **Spring Initializr** com as seguintes configuraçõ
 </dependency>
 ```
 
+
 ## 🎮 Como Executar
 
 ### **Opção 1: Execução Automática (Recomendado)**
@@ -235,6 +236,7 @@ O sistema inicia automaticamente na seguinte ordem:
 # Teste completo das rotas HTTP
 .\scripts\test-api-routes.ps1
 ```
+
 
 **O que testa:**
 - ✅ Health checks do sistema

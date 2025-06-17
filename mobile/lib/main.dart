@@ -10,39 +10,38 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-
+import 'package:app_mobile/services/auth_service.dart';
+import 'package:app_mobile/presentation/auth/login_screen.dart';
+import 'package:app_mobile/providers/theme_provider.dart';
+import 'package:app_mobile/app.dart';
 
 @pragma('vm:entry-point')
-// Future<void> _onBackgroundMessage(RemoteMessage message) async {
-//   //print("--------------------- On Background Message --------------------");
+Future<void> _onBackgroundMessage(RemoteMessage message) async {
+  print("Mensagem em background recebida: ${message.notification?.title}");
+}
 
-// (message);
-// }
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
-  
   WidgetsFlutterBinding.ensureInitialized();
-  
-  
- 
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  final prefs = await SharedPreferences.getInstance();
-   try {
-      final pushService = PushNotificationService();
-      await pushService.initialize();
-      print('Serviço de notificações inicializado com sucesso');
-    } catch (e) {
-      print('Erro ao inicializar serviço de notificações: $e');
-    }
-  
+
+  try {
+    final pushService = PushNotificationService();
+    await pushService.initialize();
+    print('Serviço de notificações inicializado com sucesso');
+    FirebaseMessaging.onBackgroundMessage(_onBackgroundMessage);
+  } catch (e) {
+    print('Erro ao inicializar serviço de notificações: $e');
+  }
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => ThemeProvider(prefs),
+          create: (_) => ThemeProvider(),
         ),
         ChangeNotifierProvider(
           create: (_) => UserTypeProvider(),
@@ -51,49 +50,6 @@ void main() async {
       child: const MyApp(),
     ),
   );
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Rastreamento de Entregas',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.dark,
-        ),
-      ),
-      themeMode: context.watch<ThemeProvider>().themeMode,
-      home: const SplashScreen(),
-    );
-  }
-}
-
-class ThemeProvider extends ChangeNotifier {
-  final SharedPreferences _prefs;
-  ThemeMode _themeMode;
-
-  ThemeProvider(this._prefs) : _themeMode = _loadThemeMode(_prefs);
-
-  static ThemeMode _loadThemeMode(SharedPreferences prefs) {
-    final isDark = prefs.getBool('isDarkMode') ?? false;
-    return isDark ? ThemeMode.dark : ThemeMode.light;
-  }
-
-  ThemeMode get themeMode => _themeMode;
-
-  void toggleTheme() {
-    _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-    _prefs.setBool('isDarkMode', _themeMode == ThemeMode.dark);
-    notifyListeners();
-  }
 }
 
 class UserTypeProvider extends ChangeNotifier {
@@ -124,12 +80,28 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _navigateToHome() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-    
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => const HomeScreen(),
-      ),
-    );
+    final authService = AuthService();
+    final isLogged = await authService.validateToken();
+    if (!mounted) return;
+    if (isLogged) {
+      // Enviar token FCM ao backend
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      if (userId != null) {
+        await PushNotificationService().sendFcmTokenToBackend(userId);
+      }
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
+        ),
+      );
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const LoginScreen(),
+        ),
+      );
+    }
   }
 
   @override
@@ -149,7 +121,6 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -159,23 +130,25 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isMotorista ? 'Entregas Pendentes' : 'Minhas Entregas'), // ------>>> alterando aqui: título único
+        title: Text(isMotorista
+            ? 'Entregas Pendentes'
+            : 'Minhas Entregas'), // ------>>> alterando aqui: título único
         automaticallyImplyLeading: false,
-        actions: [ 
-          !isMotorista ?
-          IconButton(
+        actions: [
+          !isMotorista
+              ? IconButton(
                   icon: const Icon(Icons.history),
                   onPressed: () {
-
-                     Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ClientHistoryScreen(),
-                        ),
-                      );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ClientHistoryScreen(),
+                      ),
+                    );
                   },
                   tooltip: 'Histórico de Pedidos',
-                ):  IconButton(
+                )
+              : IconButton(
                   icon: const Icon(Icons.history),
                   tooltip: 'Entregas Concluídas',
                   onPressed: () {
@@ -186,14 +159,15 @@ class HomeScreen extends StatelessWidget {
                       ),
                     );
                   },
-                ), 
+                ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const SettingsScreen(), // ------>>> alterando aqui: usa SettingScreen diretamente
+                  builder: (context) =>
+                      const SettingsScreen(), // ------>>> alterando aqui: usa SettingScreen diretamente
                 ),
               );
             },
@@ -214,5 +188,3 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
-
-

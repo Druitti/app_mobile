@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:app_mobile/services/auth_service.dart';
+import 'package:app_mobile/services/notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,12 +28,30 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      
       try {
-        // TODO: Implementar lógica de login
-        await Future.delayed(const Duration(seconds: 2)); // Simulação
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
+        final authService = AuthService();
+        final success = await authService.login(
+          _emailController.text.trim(),
+          _passwordController.text.trim(),
+        );
+        if (success) {
+          final prefs = await SharedPreferences.getInstance();
+          final userId = prefs.getString('userId');
+          if (userId != null) {
+            await PushNotificationService().sendFcmTokenToBackend(userId);
+          }
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Email ou senha inválidos.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -274,4 +295,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-} 
+}

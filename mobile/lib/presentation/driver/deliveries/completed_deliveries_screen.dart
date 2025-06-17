@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:app_mobile/common/model/delivery.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
 import 'package:app_mobile/services/database_service.dart';
+import 'package:app_mobile/services/order_service.dart';
+import 'package:app_mobile/common/model/order.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CompletedDeliveriesScreen extends StatefulWidget {
   const CompletedDeliveriesScreen({Key? key}) : super(key: key);
@@ -13,10 +16,12 @@ class CompletedDeliveriesScreen extends StatefulWidget {
 
 class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
   final DatabaseService _databaseService = DatabaseService();
+  final OrderService _orderService = OrderService();
   List<Delivery> _completedDeliveries = [];
+  List<Order> _completedOrders = [];
   bool _isLoading = true;
   String? _errorMessage;
-  
+
   // Filtro de período
   DateTime? _startDate;
   DateTime? _endDate;
@@ -24,43 +29,31 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCompletedDeliveries();
+    _loadCompletedOrders();
   }
 
-  // Carrega as entregas concluídas do banco de dados
-  Future<void> _loadCompletedDeliveries() async {
+  Future<void> _loadCompletedOrders() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
-
     try {
-      // Obtém stream de entregas concluídas
-      // Para uso real, o código abaixo precisa ser adaptado para a estrutura específica do seu aplicativo
-      // Usando um snapshot de stream para obter os dados
-      final stream = _databaseService.getCompletedDeliveries();
-      stream.listen((deliveries) {
-        if (mounted) {
-          setState(() {
-            _completedDeliveries = deliveries;
-            _isLoading = false;
-          });
-        }
-      }, onError: (error) {
-        if (mounted) {
-          setState(() {
-            _errorMessage = 'Erro ao carregar entregas: $error';
-            _isLoading = false;
-          });
-        }
+      final prefs = await SharedPreferences.getInstance();
+      final driverId = prefs.getString('userId');
+      if (driverId == null) throw Exception('Motorista não autenticado');
+      final allDelivered = await _orderService.getOrdersByStatus('ENTREGUE');
+      // Filtrar apenas as entregas atribuídas a este motorista
+      final myDelivered =
+          allDelivered.where((o) => o.driverName == driverId).toList();
+      setState(() {
+        _completedOrders = myDelivered;
+        _isLoading = false;
       });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Erro ao carregar entregas: $e';
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _errorMessage = 'Erro ao carregar entregas: $e';
+        _isLoading = false;
+      });
     }
   }
 
@@ -125,7 +118,7 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
                       _endDate = null;
                     });
                     Navigator.of(context).pop();
-                    _loadCompletedDeliveries();
+                    _loadCompletedOrders();
                   },
                 ),
                 TextButton(
@@ -152,7 +145,7 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
     try {
       // Em um cenário real, idealmente você teria um método específico no DatabaseService
       // para filtrar entregas por data. Como alternativa, podemos filtrar em memória:
-      
+
       final stream = _databaseService.getCompletedDeliveries();
       stream.listen((deliveries) {
         if (mounted) {
@@ -160,24 +153,28 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
           final filteredDeliveries = deliveries.where((delivery) {
             // Converte para o início do dia para a data inicial
             final deliveryDate = delivery.timestamp;
-            
+
             bool matchesStart = true;
             bool matchesEnd = true;
-            
+
             if (_startDate != null) {
-              final start = DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
-              matchesStart = deliveryDate.isAfter(start) || deliveryDate.isAtSameMomentAs(start);
+              final start = DateTime(
+                  _startDate!.year, _startDate!.month, _startDate!.day);
+              matchesStart = deliveryDate.isAfter(start) ||
+                  deliveryDate.isAtSameMomentAs(start);
             }
-            
+
             if (_endDate != null) {
               // Usar o final do dia para a data final
-              final end = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
-              matchesEnd = deliveryDate.isBefore(end) || deliveryDate.isAtSameMomentAs(end);
+              final end = DateTime(
+                  _endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+              matchesEnd = deliveryDate.isBefore(end) ||
+                  deliveryDate.isAtSameMomentAs(end);
             }
-            
+
             return matchesStart && matchesEnd;
           }).toList();
-          
+
           setState(() {
             _completedDeliveries = filteredDeliveries;
             _isLoading = false;
@@ -225,19 +222,21 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildDetailRow(Icons.description, 'Descrição', delivery.description),
+                  _buildDetailRow(
+                      Icons.description, 'Descrição', delivery.description),
                   _buildDetailRow(Icons.person, 'Cliente', delivery.clientName),
-                  _buildDetailRow(Icons.location_on, 'Endereço', delivery.deliveryAddress),
-                  _buildDetailRow(Icons.calendar_today, 'Data', 
+                  _buildDetailRow(
+                      Icons.location_on, 'Endereço', delivery.deliveryAddress),
+                  _buildDetailRow(Icons.calendar_today, 'Data',
                       '${delivery.timestamp.day}/${delivery.timestamp.month}/${delivery.timestamp.year} - ${delivery.timestamp.hour}:${delivery.timestamp.minute.toString().padLeft(2, '0')}'),
-                  
-                  if (delivery.photoPath != null && delivery.photoPath!.isNotEmpty)
+                  if (delivery.photoPath != null &&
+                      delivery.photoPath!.isNotEmpty)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 16),
-                        const Text('Comprovante de Entrega:', 
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                        const Text('Comprovante de Entrega:',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8.0),
@@ -256,14 +255,13 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
                         ),
                       ],
                     ),
-                    
                   if (delivery.latitude != null && delivery.longitude != null)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 16),
-                        const Text('Localização da Entrega:', 
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                        const Text('Localização da Entrega:',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
                         Container(
                           height: 200,
@@ -280,7 +278,6 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
                         ),
                       ],
                     ),
-                    
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: () {
@@ -345,7 +342,7 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Atualizar lista',
-            onPressed: _loadCompletedDeliveries,
+            onPressed: _loadCompletedOrders,
           ),
         ],
       ),
@@ -358,7 +355,7 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
     if (_isLoading) {
       return const Center(child: LoadingIndicator());
     }
-    
+
     // Mostra mensagem de erro se houver
     if (_errorMessage != null) {
       return Center(
@@ -368,21 +365,22 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
             Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _loadCompletedDeliveries,
+              onPressed: _loadCompletedOrders,
               child: const Text('Tentar novamente'),
             ),
           ],
         ),
       );
     }
-    
+
     // Mostra mensagem se não houver entregas
     if (_completedDeliveries.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
+            const Icon(Icons.check_circle_outline,
+                size: 64, color: Colors.grey),
             const SizedBox(height: 16),
             const Text('Nenhuma entrega concluída encontrada',
                 style: TextStyle(fontSize: 16)),
@@ -394,7 +392,7 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
                     _startDate = null;
                     _endDate = null;
                   });
-                  _loadCompletedDeliveries();
+                  _loadCompletedOrders();
                 },
                 child: const Text('Limpar filtros'),
               ),
@@ -402,10 +400,10 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
         ),
       );
     }
-    
+
     // Mostra lista de entregas concluídas
     return RefreshIndicator(
-      onRefresh: _loadCompletedDeliveries,
+      onRefresh: _loadCompletedOrders,
       child: ListView.builder(
         itemCount: _completedDeliveries.length,
         padding: const EdgeInsets.all(16.0),
@@ -467,7 +465,7 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
                         Expanded(
                           child: Row(
                             children: [
-                              Icon(Icons.location_on_outlined, 
+                              Icon(Icons.location_on_outlined,
                                   size: 16, color: Colors.grey[700]),
                               const SizedBox(width: 4),
                               Expanded(
@@ -486,7 +484,7 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
                         ),
                         Row(
                           children: [
-                            Icon(Icons.calendar_today, 
+                            Icon(Icons.calendar_today,
                                 size: 16, color: Colors.grey[700]),
                             const SizedBox(width: 4),
                             Text(

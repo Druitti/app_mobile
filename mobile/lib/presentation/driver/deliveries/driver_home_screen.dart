@@ -8,7 +8,9 @@ import 'package:app_mobile/common/model/delivery.dart';
 import 'package:app_mobile/common/widgets/loading_indicator.dart';
 import 'package:app_mobile/common/utils/helpers.dart';
 import 'package:app_mobile/services/database_service.dart'; // Importe o serviço de banco de dados
- // Importe o Firestore
+import 'package:app_mobile/services/order_service.dart';
+import 'package:app_mobile/common/model/order.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   final bool showAppBar;
@@ -21,16 +23,13 @@ class DriverHomeScreen extends StatefulWidget {
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _isLoading = true;
-  List<Delivery> _availableDeliveries = [];
-  late DatabaseService _databaseService;
-  // Possível stream subscription para o Firebase
-  Stream<List<Delivery>>? _deliveriesStream;
+  List<Order> _availableOrders = [];
+  final OrderService _orderService = OrderService();
 
   @override
   void initState() {
     super.initState();
-    _databaseService = DatabaseService();
-    _loadDeliveries();
+    _loadOrders();
   }
 
   @override
@@ -39,62 +38,57 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     super.dispose();
   }
 
-  // Carregar entregas do Firebase
-  void _loadDeliveries() {
+  Future<void> _loadOrders() async {
     setState(() {
       _isLoading = true;
     });
-
-    _deliveriesStream = _databaseService.getAvailableDeliveries();
-    
-    // Se preferir usar um listener em vez de StreamBuilder
-    _deliveriesStream!.listen((deliveries) {
-      if (mounted) {
-        setState(() {
-          _availableDeliveries = deliveries;
-          _isLoading = false;
-        });
-      }
-    }, onError: (error) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar entregas: $error')),
-        );
-      }
-    });
+    try {
+      final orders = await _orderService.getOrdersByStatus('PENDENTE');
+      setState(() {
+        _availableOrders = orders;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar entregas: $e')),
+      );
+    }
   }
 
-  // Método para atualizar manualmente a lista de entregas
+  Future<void> _acceptOrder(Order order) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final driverId = prefs.getString('userId');
+      if (driverId == null) throw Exception('Motorista não autenticado');
+      final assigned = await _orderService.assignDriver(order.id, driverId);
+      if (assigned) {
+        final updated = await _orderService.updateOrderStatus(order.id, 'EM_ANDAMENTO');
+        if (updated) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Entrega aceita com sucesso!'), backgroundColor: Colors.green),
+          );
+          await _loadOrders();
+        } else {
+          throw Exception('Erro ao atualizar status da entrega');
+        }
+      } else {
+        throw Exception('Erro ao aceitar entrega');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao aceitar entrega: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   void _refreshDeliveries() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Atualizando entregas disponíveis...')),
     );
-    _loadDeliveries();
-  }
-
-  // Método para aceitar uma entrega
-  Future<void> _acceptDelivery(Delivery delivery) async {
-    try {
-      _databaseService.getDeliveryById(delivery.id);
-      // Navegação para a tela de navegação após aceitar
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DeliveryNavigationScreen(delivery: delivery),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao aceitar entrega: $e')),
-        );
-      }
-    }
+    _loadOrders();
   }
 
   @override
@@ -144,32 +138,30 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   Widget _buildAvailableDeliveriesList() {
-    if (_availableDeliveries.isEmpty) {
+    if (_availableOrders.isEmpty) {
       return const Center(
           child: Text('Nenhuma entrega disponível no momento.'));
     }
 
     return ListView.builder(
-      itemCount: _availableDeliveries.length,
+      itemCount: _availableOrders.length,
       itemBuilder: (context, index) {
-        final delivery = _availableDeliveries[index];
+        final order = _availableOrders[index];
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: ListTile(
-            title: Text(delivery.description),
-            subtitle: Text(
-                'Cliente: ${delivery.clientName}\nEndereço: ${delivery.deliveryAddress}'),
+            title: Text(order.description),
+            subtitle: Text('Endereço: ${order.endereco ?? 'Não informado'}'),
             trailing: ElevatedButton(
               child: const Text('Aceitar'),
               onPressed: () async {
                 bool? confirmed = await showConfirmationDialog(
                   context,
                   'Confirmar Entrega',
-                  'Deseja aceitar esta entrega?\n${delivery.description}',
+                  'Deseja aceitar esta entrega?\n${order.description}',
                 );
-                
                 if (confirmed != null && confirmed) {
-                  await _acceptDelivery(delivery);
+                  await _acceptOrder(order);
                 }
               },
             ),
