@@ -4,16 +4,16 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
 public class LocationUpdateRequest {
-    @NotNull
+    @NotNull(message = "O ID do pedido é obrigatório")
     private Long orderId;
     
-    @NotNull
+    @NotNull(message = "O ID do motorista é obrigatório")
     private Long driverId;
     
-    @NotNull
+    @NotNull(message = "A latitude é obrigatória")
     private Double latitude;
     
-    @NotNull
+    @NotNull(message = "A longitude é obrigatória")
     private Double longitude;
     
     private Double speed;

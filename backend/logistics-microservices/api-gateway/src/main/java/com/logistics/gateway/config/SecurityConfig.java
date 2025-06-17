@@ -22,7 +22,8 @@ public class SecurityConfig {
                     "/webjars/**",
                     "/api/gateway/health",
                     "/api/gateway/info",
-                    "/api/gateway/v3/api-docs"
+                    "/api/gateway/v3/api-docs",
+                    "/api/auth/**" // Liberar todas as rotas de autenticação
                 ).permitAll()
                 .anyExchange().authenticated()
             )

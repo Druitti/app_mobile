@@ -99,12 +99,8 @@ public class AuthController {
         )
         @Valid @RequestBody RegisterRequest request
     ) {
-        try {
-            AuthResponse response = authService.register(request);
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        AuthResponse response = authService.register(request);
+        return ResponseEntity.ok(response);
     }
     
     @Operation(
@@ -169,12 +165,8 @@ public class AuthController {
         )
         @Valid @RequestBody LoginRequest request
     ) {
-        try {
-            AuthResponse response = authService.login(request);
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
     }
     
     @Operation(
@@ -221,22 +213,14 @@ public class AuthController {
         @RequestParam String token
     ) {
         Map<String, Object> response = new HashMap<>();
-        
-        try {
-            boolean isValid = authService.validateToken(token);
-            response.put("valid", isValid);
-            
-            if (isValid) {
-                Claims claims = jwtService.getClaimsFromToken(token);
-                response.put("userId", claims.get("userId"));
-                response.put("email", claims.get("email"));
-                response.put("userType", claims.get("userType"));
-            }
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            response.put("valid", false);
-            return ResponseEntity.ok(response);
+        boolean isValid = authService.validateToken(token);
+        response.put("valid", isValid);
+        if (isValid) {
+            Claims claims = jwtService.getClaimsFromToken(token);
+            response.put("userId", claims.get("userId"));
+            response.put("email", claims.get("email"));
+            response.put("userType", claims.get("userType"));
         }
+        return ResponseEntity.ok(response);
     }
 }

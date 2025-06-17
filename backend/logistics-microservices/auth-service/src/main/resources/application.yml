@@ -1,5 +1,10 @@
 server:
   port: 0
+  error:
+    whitelabel:
+      enabled: false
+    include-stacktrace: never
+    include-message: never
 
 spring:
   application:
@@ -16,6 +21,11 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
 
 eureka:
   client:
@@ -29,6 +39,16 @@ jwt:
   expiration: 86400000
   refresh-expiration: 604800000
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
 ---
 spring:
   config:
@@ -41,13 +61,3 @@ eureka:
   client:
     service-url:
       default-zone: http://eureka-server:8761/eureka
-
-springdoc:
-  swagger-ui:
-    path: /swagger-ui.html
-    tags-sorter: alpha
-    operations-sorter: alpha
-  api-docs:
-    path: /v3/api-docs
-  default-produces-media-type: application/json
-  default-consumes-media-type: application/json

@@ -1,16 +1,39 @@
 server:
   port: 8080
+  error:
+    whitelabel:
+      enabled: false
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
 
 spring:
   application:
     name: api-gateway
+  main:
+    allow-circular-references: true
+    web-application-type: reactive
   cloud:
     gateway:
-    
       routes:
-       
+        # Rota específica para auth-service para melhor controle
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT,SERVICE_UNAVAILABLE
+                methods: GET,POST,PUT,DELETE
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+      
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+      
       globalcors:
         corsConfigurations:
           '[/**]':
@@ -18,31 +41,41 @@ spring:
             allowedMethods: "*"
             allowedHeaders: "*"
             allowCredentials: true
+            exposedHeaders: "Content-Type,Authorization"
+      
       discovery:
         locator:
           enabled: true
           lower-case-service-id: true
+          # Evita conflitos com rotas específicas
+          route-id-prefix: discovery-
 
 eureka:
   client:
     service-url:
       default-zone: http://localhost:8761/eureka
+    register-with-eureka: true
+    fetch-registry: true
   instance:
     prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
+        include: health,info,gateway,metrics
   endpoint:
     health:
       show-details: always
+    gateway:
+      enabled: true
 
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG
     org.springframework.cloud.loadbalancer: DEBUG
+    reactor.netty.http.client: DEBUG
 
 # Configuração do Swagger/OpenAPI
 springdoc:
@@ -53,31 +86,9 @@ springdoc:
     urls:
       - name: Gateway
         url: /v3/api-docs
+      - name: Auth Service
+        url: /auth-service/v3/api-docs
   api-docs:
     enabled: true
     path: /v3/api-docs
   show-actuator: true
-
----
-spring:
-  config:
-    activate:
-      on-profile: docker
-
-eureka:
-  client:
-    service-url:
-      default-zone: http://eureka-server:8761/eureka
-
-# Configuração específica para Docker
-springdoc:
-  swagger-ui:
-    enabled: true
-    path: /swagger-ui.html
-    config-url: /v3/api-docs/swagger-config
-    urls:
-      - name: Gateway
-        url: /v3/api-docs
-  api-docs:
-    enabled: true
-    path: /v3/api-docs

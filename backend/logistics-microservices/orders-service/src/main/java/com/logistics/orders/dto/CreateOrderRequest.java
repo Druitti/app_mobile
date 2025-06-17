@@ -5,13 +5,13 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 public class CreateOrderRequest {
-    @NotNull
+    @NotNull(message = "O ID do cliente é obrigatório")
     private Long customerId;
     
-    @NotBlank
+    @NotBlank(message = "O endereço de origem é obrigatório")
     private String originAddress;
     
-    @NotBlank
+    @NotBlank(message = "O endereço de destino é obrigatório")
     private String destinationAddress;
     
     private String cargoType;

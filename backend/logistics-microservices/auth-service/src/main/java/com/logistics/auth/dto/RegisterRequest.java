@@ -6,18 +6,22 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public class RegisterRequest {
-    @Email
-    @NotBlank
+    @Email(message = "E-mail inválido")
+    @NotBlank(message = "O e-mail é obrigatório")
     private String email;
     
-    @NotBlank
+    @NotBlank(message = "A senha é obrigatória")
     private String password;
     
-    @NotNull
+    @NotNull(message = "O tipo de usuário é obrigatório")
     private User.UserType userType;
     
+    @NotBlank(message = "O nome é obrigatório")
     private String firstName;
+    
+    @NotBlank(message = "O sobrenome é obrigatório")
     private String lastName;
+    
     @NotBlank(message = "O número de telefone é obrigatório")
     private String phone;
     
