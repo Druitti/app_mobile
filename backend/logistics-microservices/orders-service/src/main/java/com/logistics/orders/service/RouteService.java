@@ -6,6 +6,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.RestClientException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 
 @Service
 public class RouteService {
@@ -18,6 +20,8 @@ public class RouteService {
         this.objectMapper = new ObjectMapper();
     }
     
+    @CircuitBreaker(name = "osrmRoute", fallbackMethod = "calculateFallbackRoute")
+    @Retry(name = "osrmRoute")
     public RouteResponse calculateRoute(String originAddress, String destinationAddress) {
         try {
             // Primeiro, obter coordenadas dos endereços usando Nominatim (OpenStreetMap)
@@ -45,7 +49,7 @@ public class RouteService {
             
         } catch (Exception e) {
             // Fallback para cálculo simples baseado em distância linear
-            return calculateFallbackRoute(originAddress, destinationAddress);
+            return calculateFallbackRoute(originAddress, destinationAddress, e);
         }
         
         return new RouteResponse(0.0, 0, "");
@@ -75,11 +79,10 @@ public class RouteService {
         return new double[]{-19.9208, -43.9378};
     }
     
-    private RouteResponse calculateFallbackRoute(String origin, String destination) {
+    private RouteResponse calculateFallbackRoute(String origin, String destination, Throwable t) {
         // Cálculo simplificado baseado na diferença de endereços
         double estimatedDistance = 10.0 + (Math.random() * 20); // 10-30 km
         int estimatedTime = (int) (estimatedDistance * 3); // ~3 min por km
-        
         return new RouteResponse(estimatedDistance, estimatedTime, "");
     }
 }

@@ -11,6 +11,7 @@ Sistema completo de microsserviços desenvolvido com **Spring Boot**, **Eureka S
 - [Instalação e Configuração](#-instalação-e-configuração)
 - [Como Executar](#-como-executar)
 - [Scripts Disponíveis](#-scripts-disponíveis)
+- [Teste das APIs com Swagger](#-documentação-swaggeropenapi-dos-microsserviços)
 - [Testes](#-testes)
 - [APIs e Endpoints](#-apis-e-endpoints)
 - [Monitoramento](#-monitoramento)
@@ -203,7 +204,6 @@ O sistema inicia automaticamente na seguinte ordem:
 
 | Script | Descrição | Uso |
 |--------|-----------|-----|
-| `quick-start.ps1` | **Início rápido interativo** | Escolha como executar o sistema |
 | `run-local.ps1` | **Execução local completa** | Inicia todos os serviços localmente |
 | `docker-run.ps1` | **Execução com Docker** | Inicia tudo com Docker Compose |
 
@@ -231,6 +231,20 @@ O sistema inicia automaticamente na seguinte ordem:
 
 Após rodar um microserviço específico, basta conferir no log de run a porta que esta sendo utilizada. 
 Acesse pelo link http://localhost:[PORTA]/swagger-ui/index.html#/
+
+## 📚 Documentação Swagger/OpenAPI dos Microsserviços
+
+Após iniciar cada serviço, acesse a documentação interativa da API (Swagger UI) nos seguintes links:
+
+| Serviço           | Porta  | URL da Documentação Swagger UI                | URL OpenAPI JSON         |
+|-------------------|--------|-----------------------------------------------|--------------------------|
+| Auth Service      | 8082   | http://localhost:8082/swagger-ui.html         | http://localhost:8082/v3/api-docs |
+| Orders Service    | 8084   | http://localhost:8084/swagger-ui.html         | http://localhost:8084/v3/api-docs |
+| Tracking Service  | 8083   | http://localhost:8083/swagger-ui.html         | http://localhost:8083/v3/api-docs |
+
+
+
+---
 
 ## 🧪 Testes
 
@@ -441,8 +455,7 @@ Get-Content logs\*.log | Select-String "eureka"
 .\scripts\stop-all.ps1
 
 
-# Inicia do zero
-.\scripts\quick-start.ps1
+
 ```
 
 
@@ -503,7 +516,6 @@ logistics-microservices/
 │   │   └── DockerFile
 │   └── src/test/java/
 ├── scripts/                        # Scripts de automação
-│   ├── quick-start.ps1             # Início rápido
 │   ├── build-all.ps1               # Compilação
 │   ├── run-local.ps1               # Execução local
 │   ├── docker-run.ps1              # Execução Docker
@@ -540,7 +552,8 @@ Para suporte ou dúvidas:
 git clone https://github.com/Druitti/app_mobile.git
 cd backend
 cd logistics-microservices
-.\scripts\quick-start.ps1
+.\scripts\build-all.ps1
+.\scripts\run-local.ps1
 
 # Aguarde alguns minutos e acesse:
 # 🌐 http://localhost:8080 (API Gateway)

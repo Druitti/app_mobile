@@ -49,6 +49,22 @@ springdoc:
   default-produces-media-type: application/json
   default-consumes-media-type: application/json
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+  retry:
+    instances:
+      default:
+        maxAttempts: 3
+        waitDuration: 2s
+
 ---
 spring:
   config:

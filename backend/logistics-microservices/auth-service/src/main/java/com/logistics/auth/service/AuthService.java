@@ -9,6 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+
 @Service
 public class AuthService {
     
@@ -21,6 +24,8 @@ public class AuthService {
     @Autowired
     private JwtService jwtService;
     
+    @CircuitBreaker(name = "default", fallbackMethod = "registerFallback")
+    @Retry(name = "default")
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email já cadastrado");
@@ -41,7 +46,12 @@ public class AuthService {
         
         return new AuthResponse(token, refreshToken, user);
     }
+    public AuthResponse registerFallback(RegisterRequest request, Throwable t) {
+        throw new RuntimeException("Serviço temporariamente indisponível. Tente novamente mais tarde.");
+    }
     
+    @CircuitBreaker(name = "default", fallbackMethod = "loginFallback")
+    @Retry(name = "default")
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
@@ -54,6 +64,9 @@ public class AuthService {
         String refreshToken = jwtService.generateRefreshToken(user);
         
         return new AuthResponse(token, refreshToken, user);
+    }
+    public AuthResponse loginFallback(LoginRequest request, Throwable t) {
+        throw new RuntimeException("Serviço temporariamente indisponível. Tente novamente mais tarde.");
     }
     
     public boolean validateToken(String token) {

@@ -4,6 +4,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 
 @Service
 public class GeoService {
@@ -32,6 +34,8 @@ public class GeoService {
         return R * c; // Distância em km
     }
     
+    @CircuitBreaker(name = "nominatimReverse", fallbackMethod = "reverseGeocodeFallback")
+    @Retry(name = "nominatimReverse")
     public String reverseGeocode(double latitude, double longitude) {
         try {
             String nominatimUrl = String.format(
@@ -51,6 +55,11 @@ public class GeoService {
         }
         
         return "Endereço não encontrado";
+    }
+    
+    public String reverseGeocodeFallback(double latitude, double longitude, Throwable t) {
+        // Em caso de erro, retornar coordenadas
+        return String.format("Lat: %.6f, Lon: %.6f", latitude, longitude);
     }
     
     public boolean isNearDestination(double currentLat, double currentLon, 

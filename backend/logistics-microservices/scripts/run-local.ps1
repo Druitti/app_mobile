@@ -208,11 +208,11 @@ function Start-MicroService {
 
 # Iniciar serviços em ordem
 $services = @(
-    @{Name="Eureka Server"; Path="eureka-server"; Color="Magenta"; Wait=20},
-    @{Name="Auth Service"; Path="auth-service"; Color="Green"; Wait=20},
-    @{Name="Orders Service"; Path="orders-service"; Color="Blue"; Wait=20},
-    @{Name="Tracking Service"; Path="tracking-service"; Color="DarkYellow"; Wait=20},
-    @{Name="API Gateway"; Path="api-gateway"; Color="Cyan"; Wait=25}
+    @{Name="Eureka Server"; Path="eureka-server"; Color="Magenta"; Wait=5},
+    @{Name="Auth Service"; Path="auth-service"; Color="Green"; Wait=5},
+    @{Name="Orders Service"; Path="orders-service"; Color="Blue"; Wait=5},
+    @{Name="Tracking Service"; Path="tracking-service"; Color="DarkYellow"; Wait=5},
+    @{Name="API Gateway"; Path="api-gateway"; Color="Cyan"; Wait=5}
 )
 
 foreach ($service in $services) {

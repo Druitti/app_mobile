@@ -29,6 +29,22 @@ eureka:
   instance:
     instance-id: ${spring.application.name}:${random.value}
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      nominatimReverse:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+  retry:
+    instances:
+      nominatimReverse:
+        maxAttempts: 3
+        waitDuration: 2s
+
 ---
 spring:
   config:
@@ -51,4 +67,4 @@ springdoc:
   api-docs:
     path: /v3/api-docs
   default-produces-media-type: application/json
-  default-consumes-media-type: application/json   
+  default-consumes-media-type: application/json
