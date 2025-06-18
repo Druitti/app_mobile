@@ -1,10 +1,15 @@
 package com.logistics.gateway.config;
 
 import com.logistics.gateway.filter.AuthenticationGatewayFilterFactory;
+
+import java.util.Arrays;
+
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
@@ -93,16 +98,27 @@ public class GatewayConfig {
     }
     
     @Bean
-    public CorsWebFilter corsWebFilter() {
-        CorsConfiguration corsConfig = new CorsConfiguration();
-        corsConfig.setAllowCredentials(true);
-        corsConfig.addAllowedOriginPattern("*");
-        corsConfig.addAllowedHeader("*");
-        corsConfig.addAllowedMethod("*");
-        
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", corsConfig);
-        
-        return new CorsWebFilter(source);
-    }
+@Order(Ordered.HIGHEST_PRECEDENCE)
+public CorsWebFilter corsWebFilter() {
+    CorsConfiguration corsConfig = new CorsConfiguration();
+    
+    // Configure apenas allowedOriginPatterns OU allowedOrigins, nunca ambos
+    corsConfig.setAllowedOriginPatterns(Arrays.asList(
+        "http://localhost:*",
+        "http://127.0.0.1:*"
+    ));
+    
+    corsConfig.setAllowedMethods(Arrays.asList(
+        "GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"
+    ));
+    
+    corsConfig.setAllowedHeaders(Arrays.asList("*"));
+    corsConfig.setAllowCredentials(true);
+    corsConfig.setMaxAge(3600L);
+    
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", corsConfig);
+    
+    return new CorsWebFilter(source);
+}
 }

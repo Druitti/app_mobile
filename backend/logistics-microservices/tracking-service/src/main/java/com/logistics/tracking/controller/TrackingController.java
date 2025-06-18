@@ -21,7 +21,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/tracking")
-@CrossOrigin(origins = "*")
 @Tag(name = "Tracking", description = "Endpoints de rastreamento de entregas")
 public class TrackingController {
 

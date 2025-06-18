@@ -19,7 +19,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @RestController
 @RequestMapping("/api/orders")
-@CrossOrigin(origins = "*")
 @Tag(name = "Order Management", description = "APIs para gerenciamento de pedidos do sistema de logística")
 public class OrderController {
     
