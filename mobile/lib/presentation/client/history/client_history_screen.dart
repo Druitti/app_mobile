@@ -4,6 +4,8 @@ import 'package:app_mobile/common/widgets/loading_indicator.dart';
 import 'package:app_mobile/services/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:app_mobile/services/order_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ClientHistoryScreen extends StatefulWidget {
   const ClientHistoryScreen({Key? key}) : super(key: key);
@@ -13,7 +15,7 @@ class ClientHistoryScreen extends StatefulWidget {
 }
 
 class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
-  final DatabaseService _databaseService = DatabaseService();
+  final OrderService _orderService = OrderService();
   List<app_order.Order> _historyOrders = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -40,26 +42,11 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-
     try {
-      // Buscar todas as entregas do banco de dados
-      final entregas = await _databaseService.listarEntregasParaApp();
-
-      // Converter para o formato Order
-      final orders = entregas
-          .map((e) => app_order.Order(
-                id: e['id'],
-                description: e['description'],
-                status: e['status'],
-                estimatedDelivery: DateTime.parse(e['estimatedDelivery']),
-                driverName: e['driverName'],
-                actualDeliveryTime:
-                    e['status'] == 'Entregue' || e['status'] == 'Concluída'
-                        ? DateTime.parse(e['timestamp'])
-                        : null,
-              ))
-          .toList();
-
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      if (userId == null) throw Exception('Usuário não autenticado');
+      final orders = await _orderService.getOrdersForCustomer(userId);
       setState(() {
         _historyOrders = orders;
         _isLoading = false;
@@ -78,56 +65,29 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
       _selectedFilter = status;
       _isLoading = true;
     });
-
-    // Se for "Todos", recarrega todos os pedidos
     if (status == 'Todos') {
       _loadOrderHistory();
       return;
     }
-
-    // Caso contrário, busca todas as entregas e filtra por status
-    _databaseService.listarEntregasParaApp().then((entregas) {
-      // Filtrar por status
-      final filteredEntregas = entregas.where((e) {
-        if (status == 'Entregues') {
-          return e['status'] == 'Entregue' || e['status'] == 'Concluída';
-        } else if (status == 'Cancelados') {
-          return e['status'] == 'Cancelado';
-        } else if (status == 'Em Andamento') {
-          return e['status'] == 'Em Andamento' ||
-              e['status'] == 'Em andamento' ||
-              e['status'] == 'Em Trânsito' ||
-              e['status'] == 'Em trânsito';
-        } else if (status == 'Pendentes') {
-          return e['status'] == 'Pendente' || e['status'] == 'Aguardando';
-        }
-        return true;
-      }).toList();
-
-      // Converter para o formato Order
-      final filteredOrders = filteredEntregas
-          .map((e) => app_order.Order(
-                id: e['id'],
-                description: e['description'],
-                status: e['status'],
-                estimatedDelivery: DateTime.parse(e['estimatedDelivery']),
-                driverName: e['driverName'],
-                actualDeliveryTime:
-                    e['status'] == 'Entregue' || e['status'] == 'Concluída'
-                        ? DateTime.parse(e['timestamp'])
-                        : null,
-              ))
-          .toList();
-
-      setState(() {
-        _historyOrders = filteredOrders;
-        _isLoading = false;
-      });
-    }).catchError((error) {
-      setState(() {
-        _errorMessage = 'Erro ao filtrar pedidos: $error';
-        _isLoading = false;
-      });
+    // Filtrar localmente a lista já carregada
+    final filteredOrders = _historyOrders.where((order) {
+      if (status == 'Entregues') {
+        return order.status?.toLowerCase() == 'entregue' ||
+            order.status?.toLowerCase() == 'concluída';
+      } else if (status == 'Cancelados') {
+        return order.status?.toLowerCase() == 'cancelado';
+      } else if (status == 'Em Andamento') {
+        return order.status?.toLowerCase() == 'em andamento' ||
+            order.status?.toLowerCase() == 'em trânsito';
+      } else if (status == 'Pendentes') {
+        return order.status?.toLowerCase() == 'pendente' ||
+            order.status?.toLowerCase() == 'aguardando';
+      }
+      return true;
+    }).toList();
+    setState(() {
+      _historyOrders = filteredOrders;
+      _isLoading = false;
     });
   }
 
@@ -244,7 +204,7 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => _OrderDetailsScreen(orderId: order.id),
+        builder: (context) => _OrderDetailsScreen(orderId: order.id ?? ''),
       ),
     );
   }
@@ -384,7 +344,7 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  order.id,
+                                                  order.id ?? '',
                                                   style: const TextStyle(
                                                     fontSize: 16,
                                                     fontWeight: FontWeight.bold,
@@ -393,7 +353,7 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                                               ],
                                             ),
                                           ),
-                                          _buildStatusChip(order.status),
+                                          _buildStatusChip(order.status ?? ''),
                                         ],
                                       ),
 
@@ -408,7 +368,7 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                                             child: _buildInfoCard(
                                               icon: Icons.description,
                                               title: 'Descrição',
-                                              value: order.description,
+                                              value: order.description ?? '-',
                                             ),
                                           ),
                                           const SizedBox(width: 16),
@@ -419,7 +379,8 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
                                               value: DateFormat(
                                                       'dd/MM/yyyy HH:mm')
                                                   .format(
-                                                      order.estimatedDelivery),
+                                                      order.estimatedDelivery ??
+                                                          DateTime.now()),
                                             ),
                                           ),
                                         ],

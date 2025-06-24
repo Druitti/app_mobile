@@ -2,124 +2,114 @@ import 'package:equatable/equatable.dart';
 
 // Representa uma encomenda/pedido do ponto de vista do cliente.
 class Order extends Equatable {
-  final String id;
-  final String description;
-  final String status; 
-  final DateTime estimatedDelivery;
-  final String? trackingUrl; // URL para rastreamento externo, se houver
-  final String driverName; 
-  final DateTime? actualDeliveryTime; 
-  final double? latitude;
-  final double? longitude;
-
-  final String? endereco;
-  final String? cep;
-  final String? contatoCliente;
-  final String? observacoes;
-  final String? fotosUrl;
+  final String? id;
+  final String customerId;
+  final String originAddress;
+  final String destinationAddress;
+  final String? cargoType;
+  final String? description;
+  final double? price;
+  final String? status;
+  final DateTime? estimatedDelivery;
+  final String? driverName;
+  final String? driverId;
+  final DateTime? actualDeliveryTime;
 
   const Order({
-    required this.id,
-    required this.description,
-    required this.status,
-    required this.estimatedDelivery,
-    this.trackingUrl,
-    required this.driverName,
+    this.id,
+    required this.customerId,
+    required this.originAddress,
+    required this.destinationAddress,
+    this.cargoType,
+    this.description,
+    this.price,
+    this.status,
+    this.estimatedDelivery,
+    this.driverName,
+    this.driverId,
     this.actualDeliveryTime,
-    this.latitude,
-    this.longitude,
-    this.endereco,
-    this.cep,
-    this.contatoCliente,
-    this.observacoes,
-    this.fotosUrl,
   });
 
   // Construtor de fábrica para criar Order a partir de um Map (ex: JSON da API)
   factory Order.fromJson(Map<String, dynamic> json) {
     return Order(
-      id: json['id']?.toString() ?? json['codigo']?.toString() ?? '',
-      description: json['description'] ?? json['descricao'] ?? '',
-      status: json['status'] ?? '',
-      estimatedDelivery: DateTime.parse(json['estimatedDelivery'] ?? json['estimated_delivery'] ?? DateTime.now().toIso8601String()),
-      driverName: json['driverName'] ?? json['driver_name'] ?? '',
+      id: json['id']?.toString(),
+      customerId: json['customerId']?.toString() ?? '',
+      originAddress: json['originAddress'] ?? '',
+      destinationAddress: json['destinationAddress'] ?? '',
+      cargoType: json['cargoType'],
+      description: json['description'],
+      price: (json['price'] is int)
+          ? (json['price'] as int).toDouble()
+          : (json['price'] as double?),
+      status: json['status'],
+      estimatedDelivery: json['estimatedDelivery'] != null
+          ? DateTime.tryParse(json['estimatedDelivery'])
+          : null,
+      driverName: json['driverName'],
+      driverId: json['driverId']?.toString(),
       actualDeliveryTime: json['actualDeliveryTime'] != null
-          ? DateTime.parse(json['actualDeliveryTime'])
-          : (json['actual_delivery_time'] != null ? DateTime.parse(json['actual_delivery_time']) : null),
-      latitude: (json['latitude'] is int)
-          ? (json['latitude'] as int).toDouble()
-          : json['latitude'] as double?,
-      longitude: (json['longitude'] is int)
-          ? (json['longitude'] as int).toDouble()
-          : json['longitude'] as double?,
-      endereco: json['endereco'],
-      cep: json['cep'],
-      contatoCliente: json['contatoCliente'] ?? json['contato_cliente'],
-      observacoes: json['observacoes'],
-      fotosUrl: json['fotosUrl'] ?? json['fotos_url'],
+          ? DateTime.tryParse(json['actualDeliveryTime'])
+          : null,
     );
   }
 
   // Método para converter Order em um Map (útil para testes ou outras operações)
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'description': description,
-      'status': status,
-      'estimatedDelivery': estimatedDelivery.toIso8601String(),
-      'driverName': driverName,
-      'actualDeliveryTime': actualDeliveryTime?.toIso8601String(),
-      'latitude': latitude,
-      'longitude': longitude,
-      'endereco': endereco,
-      'cep': cep,
-      'contatoCliente': contatoCliente,
-      'observacoes': observacoes,
-      'fotosUrl': fotosUrl,
+    final data = <String, dynamic>{
+      'customerId': int.tryParse(customerId) ?? customerId,
+      'originAddress': originAddress,
+      'destinationAddress': destinationAddress,
     };
+    if (cargoType != null) data['cargoType'] = cargoType;
+    if (description != null) data['description'] = description;
+    if (price != null) data['price'] = price;
+    return data;
   }
 
   @override
   List<Object?> get props => [
         id,
+        customerId,
+        originAddress,
+        destinationAddress,
+        cargoType,
         description,
+        price,
         status,
         estimatedDelivery,
-        trackingUrl,
         driverName,
+        driverId,
         actualDeliveryTime,
       ];
 
-      Order copyWith({
+  Order copyWith({
     String? id,
+    String? customerId,
+    String? originAddress,
+    String? destinationAddress,
+    String? cargoType,
     String? description,
+    double? price,
     String? status,
     DateTime? estimatedDelivery,
     String? driverName,
+    String? driverId,
     DateTime? actualDeliveryTime,
-    double? latitude,
-    double? longitude,
-    String? endereco,
-    String? cep,
-    String? contatoCliente,
-    String? observacoes,
-    String? fotosUrl,
   }) {
     return Order(
       id: id ?? this.id,
+      customerId: customerId ?? this.customerId,
+      originAddress: originAddress ?? this.originAddress,
+      destinationAddress: destinationAddress ?? this.destinationAddress,
+      cargoType: cargoType ?? this.cargoType,
       description: description ?? this.description,
+      price: price ?? this.price,
       status: status ?? this.status,
       estimatedDelivery: estimatedDelivery ?? this.estimatedDelivery,
       driverName: driverName ?? this.driverName,
+      driverId: driverId ?? this.driverId,
       actualDeliveryTime: actualDeliveryTime ?? this.actualDeliveryTime,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
-      endereco: endereco ?? this.endereco,
-      cep: cep ?? this.cep,
-      contatoCliente: contatoCliente ?? this.contatoCliente,
-      observacoes: observacoes ?? this.observacoes,
-      fotosUrl: fotosUrl ?? this.fotosUrl,
     );
   }
 }
-

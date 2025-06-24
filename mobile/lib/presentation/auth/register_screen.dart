@@ -41,8 +41,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-
-    try {
+      
+      try {
       final success = await _authService.register(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -56,13 +56,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (!mounted) return;
 
         // Mostrar mensagem de sucesso
-        ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content:
                 Text('Conta criada com sucesso! Faça login para continuar.'),
             backgroundColor: Colors.green,
-          ),
-        );
+            ),
+          );
 
         // Navegar para a tela de login
         Navigator.pushReplacementNamed(context, '/login');
@@ -76,8 +76,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() {
         _errorMessage = 'Erro ao criar conta: ${e.toString()}';
       });
-    } finally {
-      if (mounted) {
+      } finally {
+        if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -152,23 +152,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           labelText: 'Tipo de Usuário',
                           border: OutlineInputBorder(),
                         ),
-                        items: const [
-                          DropdownMenuItem(
+                            items: const [
+                              DropdownMenuItem(
                             value: 'CUSTOMER',
-                            child: Text('Cliente'),
-                          ),
-                          DropdownMenuItem(
+                                child: Text('Cliente'),
+                              ),
+                              DropdownMenuItem(
                             value: 'DRIVER',
-                            child: Text('Entregador'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
+                                child: Text('Entregador'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
                             setState(() {
                               _selectedUserType = value;
                             });
-                          }
-                        },
+                              }
+                            },
                       ),
                       const SizedBox(height: 16),
 
@@ -386,4 +386,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
-}
+} 

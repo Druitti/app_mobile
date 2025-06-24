@@ -1,14 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class TrackingService {
-  static const String baseUrl = 'http://localhost:8080/api/tracking';
-
-  Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('token');
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:8080/api/tracking'; // Para web
+    } else {
+      return 'http://10.0.2.2:8080/api/tracking'; // Para Android Emulator
+    }
   }
 
   Future<bool> sendLocation({
@@ -16,12 +17,10 @@ class TrackingService {
     required double latitude,
     required double longitude,
   }) async {
-    final token = await _getToken();
     final response = await http.post(
       Uri.parse('$baseUrl/location'),
       headers: {
         'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
       },
       body: jsonEncode({
         'orderId': orderId,
@@ -33,12 +32,10 @@ class TrackingService {
   }
 
   Future<LatLng?> getCurrentLocation(String orderId) async {
-    final token = await _getToken();
     final response = await http.get(
       Uri.parse('$baseUrl/order/$orderId/current'),
       headers: {
         'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
       },
     );
     if (response.statusCode == 200) {
@@ -54,12 +51,10 @@ class TrackingService {
   }
 
   Future<List<LatLng>> getLocationHistory(String orderId) async {
-    final token = await _getToken();
     final response = await http.get(
       Uri.parse('$baseUrl/order/$orderId/history'),
       headers: {
         'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
       },
     );
     if (response.statusCode == 200) {

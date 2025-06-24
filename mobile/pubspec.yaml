@@ -75,6 +75,7 @@ dependencies:
   logger: ^2.0.2+1
   permission_handler: ^11.2.0
   dartz: ^0.10.1
+  jwt_decoder: ^2.0.1
 
 dev_dependencies:
   flutter_test:

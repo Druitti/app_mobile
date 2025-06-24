@@ -23,7 +23,9 @@ public class SecurityConfig {
                     "/api/gateway/health",
                     "/api/gateway/info",
                     "/api/gateway/v3/api-docs",
-                    "/api/auth/**" // Liberar todas as rotas de autenticação
+                    "/api/auth/**",
+                    "/api/orders/**",
+                    "/api/tracking/**"
                 ).permitAll()
                 .anyExchange().authenticated()
             )

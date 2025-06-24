@@ -41,10 +41,10 @@ class _CompletedDeliveriesScreenState extends State<CompletedDeliveriesScreen> {
       final prefs = await SharedPreferences.getInstance();
       final driverId = prefs.getString('userId');
       if (driverId == null) throw Exception('Motorista não autenticado');
-      final allDelivered = await _orderService.getOrdersByStatus('ENTREGUE');
+      final allDelivered = await _orderService.getOrdersByStatus('DELIVERED');
       // Filtrar apenas as entregas atribuídas a este motorista
       final myDelivered =
-          allDelivered.where((o) => o.driverName == driverId).toList();
+          allDelivered.where((o) => o.driverId == driverId).toList();
       setState(() {
         _completedOrders = myDelivered;
         _isLoading = false;

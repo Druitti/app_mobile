@@ -27,12 +27,12 @@ public class GatewayConfig {
                 
                 // Orders Service Routes (requerem autenticação)
                 .route("orders-service", r -> r.path("/api/orders/**")
-                        .filters(f -> f.filter(authFilter.apply(c -> c.setRequiredRole("USER"))))
+                       // .filters(f -> f.filter(authFilter.apply(c -> c.setRequiredRole("USER"))))
                         .uri("lb://orders-service"))
                 
                 // Tracking Service Routes (requerem autenticação)
                 .route("tracking-service", r -> r.path("/api/tracking/**")
-                        .filters(f -> f.filter(authFilter.apply(c -> c.setRequiredRole("USER"))))
+                       // .filters(f -> f.filter(authFilter.apply(c -> c.setRequiredRole("USER"))))
                         .uri("lb://tracking-service"))
                 
                 // Admin routes (requerem role ADMIN)

@@ -64,7 +64,7 @@ class MyApp extends StatelessWidget {
       onGenerateRoute: (settings) {
         print(
             'Gerando rota para: ${settings.name} com argumentos: ${settings.arguments}');
-
+        
         // Rota para rastreamento de cliente
         if (settings.name == '/client_tracking') {
           final String orderId = settings.arguments as String;
@@ -73,7 +73,7 @@ class MyApp extends StatelessWidget {
             builder: (context) => ClientTrackingScreen(orderId: orderId),
           );
         }
-
+        
         // Rota para navegação de entrega
         else if (settings.name == '/delivery_navigation') {
           final Delivery delivery = settings.arguments as Delivery;
@@ -82,7 +82,7 @@ class MyApp extends StatelessWidget {
             builder: (context) => DeliveryNavigationScreen(delivery: delivery),
           );
         }
-
+        
         // Rota para atualização de status
         else if (settings.name == '/update_status') {
           final Delivery delivery = settings.arguments as Delivery;
@@ -91,7 +91,7 @@ class MyApp extends StatelessWidget {
             builder: (context) => UpdateStatusScreen(delivery: delivery),
           );
         }
-
+        
         // Rota desconhecida
         return null;
       },
@@ -119,7 +119,7 @@ class UserTypeProvider extends ChangeNotifier {
     _isMotorista = !_isMotorista;
     notifyListeners();
   }
-
+  
   void setUserType(bool isMotorista) {
     _isMotorista = isMotorista;
     notifyListeners();
@@ -143,7 +143,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _navigateToHome() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-
+    
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => const UserSelectionScreen(),
