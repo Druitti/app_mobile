@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:jwt_decoder/jwt_decoder.dart';
 
 class AuthService {
   // URL base do backend - ajuste conforme necessário
@@ -27,6 +28,12 @@ class AuthService {
         await prefs.setString('token', data['token']);
         if (data['user'] != null && data['user']['id'] != null) {
           await prefs.setString('userId', data['user']['id'].toString());
+        } else {
+          Map<String, dynamic> decodedToken = JwtDecoder.decode(data['token']);
+          if (decodedToken['userId'] != null) {
+            await prefs.setString('userId', decodedToken['userId'].toString());
+            print('userId salvo do token: \'${decodedToken['userId']}\'');
+          }
         }
         return true;
       }
@@ -55,16 +62,17 @@ class AuthService {
         'lastName': lastName.toString(),
         'phone': phone.toString(),
       };
-      
+
       print('Enviando dados de registro: $body'); // Log dos dados
-      
+
       final response = await http.post(
         Uri.parse('$baseUrl/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
 
-      print('Resposta do servidor: ${response.statusCode} - ${response.body}'); // Log da resposta
+      print(
+          'Resposta do servidor: ${response.statusCode} - ${response.body}'); // Log da resposta
 
       if (response.statusCode == 200) {
         return true;

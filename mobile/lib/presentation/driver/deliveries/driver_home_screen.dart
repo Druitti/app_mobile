@@ -11,6 +11,7 @@ import 'package:app_mobile/services/database_service.dart'; // Importe o serviç
 import 'package:app_mobile/services/order_service.dart';
 import 'package:app_mobile/common/model/order.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_mobile/presentation/driver/deliveries/accepted_deliveries_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   final bool showAppBar;
@@ -43,7 +44,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       _isLoading = true;
     });
     try {
-      final orders = await _orderService.getOrdersByStatus('PENDENTE');
+      final orders = await _orderService.getOrdersByStatus('PENDING');
       setState(() {
         _availableOrders = orders;
         _isLoading = false;
@@ -63,12 +64,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       final prefs = await SharedPreferences.getInstance();
       final driverId = prefs.getString('userId');
       if (driverId == null) throw Exception('Motorista não autenticado');
-      final assigned = await _orderService.assignDriver(order.id, driverId);
+
+      print(
+          '=== DEBUG: Aceitando pedido ${order.id} para motorista $driverId ===');
+
+      final assigned =
+          await _orderService.assignDriver(order.id ?? '', driverId);
       if (assigned) {
-        final updated = await _orderService.updateOrderStatus(order.id, 'EM_ANDAMENTO');
+        print('=== DEBUG: Motorista atribuído com sucesso ===');
+        final updated = await _orderService.updateOrderStatus(
+            order.id ?? '', 'EM_ANDAMENTO');
         if (updated) {
+          print('=== DEBUG: Status atualizado com sucesso ===');
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Entrega aceita com sucesso!'), backgroundColor: Colors.green),
+            const SnackBar(
+                content: Text('Entrega aceita com sucesso!'),
+                backgroundColor: Colors.green),
           );
           await _loadOrders();
         } else {
@@ -78,8 +89,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         throw Exception('Erro ao aceitar entrega');
       }
     } catch (e) {
+      print('=== DEBUG: Erro ao aceitar entrega: $e ===');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao aceitar entrega: $e'), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text('Erro ao aceitar entrega: $e'),
+            backgroundColor: Colors.red),
       );
     }
   }
@@ -93,7 +107,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return widget.showAppBar 
+    return widget.showAppBar
         ? Scaffold(
             appBar: AppBar(
               title: const Text('Entregas Disponíveis'),
@@ -110,17 +124,31 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       ),
                     );
                   },
-                ),IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SettingsScreen(), // ------>>> alterando aqui: usa SettingScreen diretamente
                 ),
-              );
-            },
-          ),
+                IconButton(
+                  icon: const Icon(Icons.assignment_turned_in),
+                  tooltip: 'Minhas Entregas Aceitas',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AcceptedDeliveriesScreen(),
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            const SettingsScreen(), // ------>>> alterando aqui: usa SettingScreen diretamente
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
             floatingActionButton: FloatingActionButton(
@@ -128,12 +156,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               tooltip: 'Atualizar',
               child: const Icon(Icons.refresh),
             ),
-            body: _isLoading 
-                ? const LoadingIndicator() 
+            body: _isLoading
+                ? const LoadingIndicator()
                 : _buildAvailableDeliveriesList(),
           )
         : _isLoading // Retorna apenas o conteúdo se não mostrar AppBar
-            ? const LoadingIndicator() 
+            ? const LoadingIndicator()
             : _buildAvailableDeliveriesList();
   }
 
@@ -150,8 +178,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: ListTile(
-            title: Text(order.description),
-            subtitle: Text('Endereço: ${order.endereco ?? 'Não informado'}'),
+            title: Text(order.description ?? ''),
+            subtitle: Text(
+                'Endereço: ${order.originAddress.isNotEmpty ? order.originAddress : 'Não informado'}'),
             trailing: ElevatedButton(
               child: const Text('Aceitar'),
               onPressed: () async {

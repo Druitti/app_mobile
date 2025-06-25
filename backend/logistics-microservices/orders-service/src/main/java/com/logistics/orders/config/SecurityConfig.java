@@ -12,7 +12,17 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll() // Permite acesso a todas as rotas
+
+                .requestMatchers(
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/v3/api-docs/**",
+                    "/v3/api-docs.yaml",
+                    "/swagger-resources/**",
+                    "/webjars/**"
+                ).permitAll()
+                .anyRequest().permitAll()
+
             )
             .csrf(csrf -> csrf.disable())
             .httpBasic(basic -> basic.disable()) // Desabilita HTTP Basic Auth

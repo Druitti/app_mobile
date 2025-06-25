@@ -23,20 +23,20 @@ Future<void> _onBackgroundMessage(RemoteMessage message) async {
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+ 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  try {
-    final pushService = PushNotificationService();
-    await pushService.initialize();
-    print('Serviço de notificações inicializado com sucesso');
+   try {
+      final pushService = PushNotificationService();
+      await pushService.initialize();
+      print('Serviço de notificações inicializado com sucesso');
     FirebaseMessaging.onBackgroundMessage(_onBackgroundMessage);
-  } catch (e) {
-    print('Erro ao inicializar serviço de notificações: $e');
-  }
-
+    } catch (e) {
+      print('Erro ao inicializar serviço de notificações: $e');
+    }
+  
   runApp(
     MultiProvider(
       providers: [
@@ -90,11 +90,11 @@ class _SplashScreenState extends State<SplashScreen> {
       if (userId != null) {
         await PushNotificationService().sendFcmTokenToBackend(userId);
       }
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ),
-      );
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => const HomeScreen(),
+      ),
+    );
     } else {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -134,17 +134,17 @@ class HomeScreen extends StatelessWidget {
             ? 'Entregas Pendentes'
             : 'Minhas Entregas'), // ------>>> alterando aqui: título único
         automaticallyImplyLeading: false,
-        actions: [
+        actions: [ 
           !isMotorista
               ? IconButton(
                   icon: const Icon(Icons.history),
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ClientHistoryScreen(),
-                      ),
-                    );
+                     Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ClientHistoryScreen(),
+                        ),
+                      );
                   },
                   tooltip: 'Histórico de Pedidos',
                 )
@@ -159,7 +159,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                     );
                   },
-                ),
+                ), 
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {

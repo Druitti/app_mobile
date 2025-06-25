@@ -15,6 +15,7 @@ import 'dart:math';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:app_mobile/services/order_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_mobile/presentation/shared/setting/setting_screen.dart';
 
 class ClientHomeScreen extends StatefulWidget {
   final bool showAppBar;
@@ -70,9 +71,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     final bool? result = await showDialog<bool>(
       context: context,
       builder: (context) => CreateOrderDialog(
-        onSave: (description, address, [coordinates]) {
+        onSave: (description, originAddress, destinationAddress, cargoType,
+            price, coordinates) {
           // Chama o método _saveNewOrder passando os parâmetros corretamente
-          return _saveNewOrder(description, address, coordinates);
+          return _saveNewOrder(description, originAddress, destinationAddress,
+              cargoType, price, coordinates);
         },
       ),
     );
@@ -80,26 +83,22 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   // Método atualizado para salvar nova entrega no banco de dados com coordenadas
   Future<bool> _saveNewOrder(
-      String description, String address, LatLng? coordinates) async {
+      String description,
+      String originAddress,
+      String destinationAddress,
+      String cargoType,
+      double price,
+      LatLng? coordinates) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('userId');
       if (userId == null) throw Exception('Usuário não autenticado');
       final order = Order(
-        id: '', // O backend irá gerar o ID
+        customerId: userId,
+        originAddress: originAddress,
+        destinationAddress: destinationAddress,
         description: description,
-        status: 'PENDENTE',
-        estimatedDelivery: DateTime.now().add(const Duration(days: 1)),
-        driverName: '',
-        latitude: coordinates?.latitude,
-        longitude: coordinates?.longitude,
-        endereco: address,
-        observacoes: 'Criado pelo cliente',
-        cep: null,
-        contatoCliente: null,
-        fotosUrl: null,
-        trackingUrl: null,
-        actualDeliveryTime: null,
+        price: price,
       );
       final success = await _orderService.createOrder(order);
       if (success) {
@@ -224,6 +223,17 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     );
                   },
                 ),
+                IconButton(
+                  icon: const Icon(Icons.settings, color: Colors.black87),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
               ],
             )
           : null,
@@ -291,7 +301,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ClientTrackingScreen(orderId: order.id),
+                  builder: (context) =>
+                      ClientTrackingScreen(orderId: order.id ?? ''),
                 ),
               );
             },
@@ -306,14 +317,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          order.description,
+                          order.description ?? '',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                      _buildStatusChip(order.status),
+                      _buildStatusChip(order.status ?? ''),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -323,7 +334,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                           size: 16, color: Colors.grey),
                       const SizedBox(width: 4),
                       Text(
-                        'Estimativa: ${_formatDate(order.estimatedDelivery)}',
+                        order.estimatedDelivery != null
+                            ? 'Estimativa: ${_formatDate(order.estimatedDelivery!)}'
+                            : 'Estimativa: --',
                         style: const TextStyle(
                           color: Colors.grey,
                           fontSize: 14,
@@ -331,7 +344,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                       ),
                     ],
                   ),
-                  if (order.driverName != null) ...[
+                  if (order.driverName != null &&
+                      order.driverName!.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -352,7 +366,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton.icon(
-                        onPressed: () => _deleteOrder(order.id),
+                        onPressed: () => _deleteOrder(order.id ?? ''),
                         icon: const Icon(Icons.delete_outline, size: 18),
                         label: const Text('Excluir'),
                         style: TextButton.styleFrom(
@@ -366,7 +380,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
-                                  ClientTrackingScreen(orderId: order.id),
+                                  ClientTrackingScreen(orderId: order.id ?? ''),
                             ),
                           );
                         },
@@ -428,7 +442,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
 class CreateOrderDialog extends StatefulWidget {
   final Future<bool> Function(
-      String description, String address, LatLng? coordinates) onSave;
+      String description,
+      String originAddress,
+      String destinationAddress,
+      String cargoType,
+      double price,
+      LatLng? coordinates) onSave;
 
   const CreateOrderDialog({
     Key? key,
@@ -442,7 +461,10 @@ class CreateOrderDialog extends StatefulWidget {
 class _CreateOrderDialogState extends State<CreateOrderDialog> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
-  final _addressController = TextEditingController();
+  final _originAddressController = TextEditingController();
+  final _destinationAddressController = TextEditingController();
+  final _cargoTypeController = TextEditingController();
+  final _priceController = TextEditingController();
 
   bool _isLoading = false;
   LatLng? _selectedLocation;
@@ -450,7 +472,10 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
   @override
   void dispose() {
     _descriptionController.dispose();
-    _addressController.dispose();
+    _originAddressController.dispose();
+    _destinationAddressController.dispose();
+    _cargoTypeController.dispose();
+    _priceController.dispose();
     super.dispose();
   }
 
@@ -462,7 +487,7 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
           onLocationSelected: (location, address) {
             setState(() {
               _selectedLocation = location;
-              _addressController.text = address;
+              _originAddressController.text = address;
             });
           },
         ),
@@ -474,7 +499,7 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
       setState(() {
         final locationData = result as Map<String, dynamic>;
         _selectedLocation = locationData['location'] as LatLng;
-        _addressController.text = locationData['address'] as String;
+        _originAddressController.text = locationData['address'] as String;
       });
     }
   }
@@ -486,7 +511,10 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
       try {
         final result = await widget.onSave(
           _descriptionController.text.trim(),
-          _addressController.text.trim(),
+          _originAddressController.text.trim(),
+          _destinationAddressController.text.trim(),
+          _cargoTypeController.text.trim(),
+          double.tryParse(_priceController.text.trim()) ?? 0.0,
           _selectedLocation,
         );
 
@@ -514,186 +542,194 @@ class _CreateOrderDialogState extends State<CreateOrderDialog> {
         padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Cabeçalho
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.local_shipping,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Nova Entrega',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Cabeçalho
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.local_shipping,
+                        color: Theme.of(context).primaryColor,
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(false),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Text(
+                        'Nova Entrega',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(false),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-              // Formulário
-              TextFormField(
-                controller: _descriptionController,
-                decoration: InputDecoration(
-                  labelText: 'Descrição da Entrega',
-                  hintText: 'Ex: Pacote de Roupas',
-                  prefixIcon: const Icon(Icons.description),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        BorderSide(color: Theme.of(context).primaryColor),
+                // Botão para abrir o mapa
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.map),
+                    label: const Text('Selecionar no mapa'),
+                    onPressed: _openMapPicker,
                   ),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Descrição é obrigatória';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
 
-              // Seletor de endereço
-              InkWell(
-                onTap: _openMapPicker,
-                borderRadius: BorderRadius.circular(12),
-                child: InputDecorator(
+                // Campo de origem
+                TextFormField(
+                  controller: _originAddressController,
                   decoration: InputDecoration(
-                    labelText: 'Endereço de Entrega',
-                    hintText: 'Selecione no mapa',
+                    labelText: 'Endereço de Origem',
+                    hintText: 'Ex: Rua tomaz gonzaga 657, Lourdes',
                     prefixIcon: const Icon(Icons.location_on),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    enabledBorder: OutlineInputBorder(
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Endereço de origem é obrigatório';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Campo de destino
+                TextFormField(
+                  controller: _destinationAddressController,
+                  decoration: InputDecoration(
+                    labelText: 'Endereço de Destino',
+                    hintText: 'Ex: Rua Guajajaras 37, Boa Vista',
+                    prefixIcon: const Icon(Icons.flag),
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: Theme.of(context).primaryColor),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.map),
-                      onPressed: _openMapPicker,
-                      tooltip: 'Abrir mapa',
                     ),
                   ),
-                  child: Text(
-                    _addressController.text.isEmpty
-                        ? 'Toque para selecionar no mapa'
-                        : _addressController.text,
-                    style: _addressController.text.isEmpty
-                        ? TextStyle(color: Colors.grey[600])
-                        : null,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Endereço de destino é obrigatório';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Tipo de carga
+                TextFormField(
+                  controller: _cargoTypeController,
+                  decoration: InputDecoration(
+                    labelText: 'Tipo de Carga',
+                    hintText: 'Ex: Bolsa',
+                    prefixIcon: const Icon(Icons.inventory_2),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
-              ),
-
-              // Localização selecionada
-              if (_selectedLocation != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green[100]!),
+                const SizedBox(height: 16),
+                // Descrição
+                TextFormField(
+                  controller: _descriptionController,
+                  decoration: InputDecoration(
+                    labelText: 'Descrição da Entrega',
+                    hintText: 'Ex: Testando a descrição',
+                    prefixIcon: const Icon(Icons.description),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle,
-                          size: 16, color: Colors.green[700]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Localização selecionada: ${_selectedLocation!.latitude.toStringAsFixed(5)}, ${_selectedLocation!.longitude.toStringAsFixed(5)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.green[700],
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Descrição é obrigatória';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Preço
+                TextFormField(
+                  controller: _priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Preço',
+                    hintText: 'Ex: 50',
+                    prefixIcon: const Icon(Icons.attach_money),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Preço é obrigatório';
+                    }
+                    if (double.tryParse(value) == null) {
+                      return 'Digite um valor válido';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // Botões de ação
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
+                        child: const Text('Cancelar'),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _saveOrder,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : const Text('Criar Entrega'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-
-              const SizedBox(height: 24),
-
-              // Botões de ação
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => Navigator.of(context).pop(false),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Cancelar'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _saveOrder,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Text('Criar Entrega'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

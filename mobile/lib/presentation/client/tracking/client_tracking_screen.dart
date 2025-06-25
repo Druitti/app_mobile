@@ -6,6 +6,7 @@ import 'package:app_mobile/common/widgets/loading_indicator.dart';
 import 'package:app_mobile/services/database_service.dart';
 import 'package:app_mobile/services/location_service.dart';
 import 'package:app_mobile/services/tracking_service.dart';
+import 'package:app_mobile/services/order_service.dart';
 
 class ClientTrackingScreen extends StatefulWidget {
   final String orderId;
@@ -65,11 +66,10 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
   Future<void> _carregarPedido() async {
     setState(() => _isLoading = true);
     try {
-      final pedidoData = await _databaseService.buscarEntrega(widget.orderId);
-
-      if (pedidoData != null) {
+      final order = await OrderService().getOrderById(widget.orderId);
+      if (order != null) {
         setState(() {
-          _order = Order.fromJson(pedidoData);
+          _order = order;
           _isLoading = false;
         });
         _atualizarMarcadores();
@@ -186,21 +186,6 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
       );
     }
 
-    // Marcador do destino da entrega
-    if (_order!.latitude != null && _order!.longitude != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('destino'),
-          position: LatLng(_order!.latitude!, _order!.longitude!),
-          infoWindow: InfoWindow(
-            title: 'Destino',
-            snippet: _order!.endereco ?? _order!.description,
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ),
-      );
-    }
-
     // Marcador do entregador (posição inicial ou simulada)
     final currentLocation = _simulationStep > 0
         ? _simulatedRoute[_simulationStep]
@@ -228,9 +213,8 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
     if (_simulationStep > 0 && _order != null) {
       // Calcular distância até o destino
       final currentLocation = _simulatedRoute[_simulationStep];
-      final destination = LatLng(_order!.latitude ?? 0, _order!.longitude ?? 0);
-      final distance =
-          _locationService.calculateDistance(currentLocation, destination);
+      final distance = _locationService.calculateDistance(
+          currentLocation, _simulatedRoute[0]);
 
       // Calcular tempo estimado (velocidade média de 30km/h)
       final timeInMinutes = (distance / 500).round(); // Simulação simplificada
@@ -409,7 +393,7 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        _order!.status,
+                                        _order!.status ?? '',
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
@@ -418,7 +402,7 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                                     ],
                                   ),
                                 ),
-                                _buildStatusChip(_order!.status),
+                                _buildStatusChip(_order!.status ?? ''),
                               ],
                             ),
 
@@ -484,8 +468,9 @@ class _ClientTrackingScreenState extends State<ClientTrackingScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          _order!.endereco ??
-                                              _order!.description,
+                                          _order!.destinationAddress ??
+                                              _order!.description ??
+                                              '',
                                           style: const TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w500,

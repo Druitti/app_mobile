@@ -53,7 +53,8 @@ class PushNotificationService {
   Future<void> initialize() async {
     try {
       if (kIsWeb) {
-        print('Push notifications não são suportadas na web. Serviço não inicializado.');
+        print(
+            'Push notifications não são suportadas na web. Serviço não inicializado.');
         return;
       }
       // Inicializa Firebase (certifique-se que Firebase.initializeApp() já foi chamado no main.dart)
@@ -434,8 +435,16 @@ class PushNotificationService {
     final token = await getFcmToken();
     if (token == null) return;
     try {
+      // URL base do backend - ajuste conforme necessário
+      String baseUrl;
+      if (kIsWeb) {
+        baseUrl = 'http://localhost:8080/api/auth'; // Para web
+      } else {
+        baseUrl = 'http://10.0.2.2:8080/api/auth'; // Para Android Emulator
+      }
+
       final response = await http.post(
-        Uri.parse('http://localhost:8080/api/auth/fcm-token'),
+        Uri.parse('$baseUrl/fcm-token'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'userId': userId, 'fcmToken': token}),
       );
