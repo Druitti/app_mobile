@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Chave para armazenar o token FCM nas preferências
@@ -57,6 +58,15 @@ class PushNotificationService {
             'Push notifications não são suportadas na web. Serviço não inicializado.');
         return;
       }
+      // Solicita permissão de notificação explicitamente no Android
+      if (Platform.isAndroid) {
+        final status = await Permission.notification.status;
+        if (!status.isGranted) {
+          final result = await Permission.notification.request();
+          print('[DEBUG] Permissão de notificação: $result');
+        }
+      }
+
       // Inicializa Firebase (certifique-se que Firebase.initializeApp() já foi chamado no main.dart)
       if (!kIsWeb) {
         // Configurar permissões para iOS
@@ -258,19 +268,7 @@ class PushNotificationService {
   }
 
   // Envia token para o servidor
-  Future<void> _sendTokenToServer(String token) async {
-    try {
-      // Implementar lógica para enviar token ao seu servidor
-      // Exemplo:
-      // await http.post(
-      //   Uri.parse('https://seu-servidor.com/api/tokens'),
-      //   headers: {'Content-Type': 'application/json'},
-      //   body: json.encode({'token': token}),
-      // );
-    } catch (e) {
-      print('Erro ao enviar token para o servidor: $e');
-    }
-  }
+
 
   /// Envia uma notificação local (útil para testes ou notificações geradas pelo app)
   Future<void> showLocalNotification({
@@ -312,65 +310,65 @@ class PushNotificationService {
   }
 
   /// Envia uma notificação para outro dispositivo (requer servidor)
-  Future<bool> sendPushNotification({
-    required String targetToken,
-    required String title,
-    required String body,
-    required String orderId,
-    required String status,
-    Map<String, dynamic>? additionalData,
-  }) async {
-    try {
-      // IMPORTANTE: Em produção, isto deve ser feito pelo seu servidor backend
-      // por razões de segurança. Esta implementação é apenas para demonstração.
+  // Future<bool> sendPushNotification({
+  //   required String targetToken,
+  //   required String title,
+  //   required String body,
+  //   required String orderId,
+  //   required String status,
+  //   Map<String, dynamic>? additionalData,
+  // }) async {
+  //   try {
+  //     // IMPORTANTE: Em produção, isto deve ser feito pelo seu servidor backend
+  //     // por razões de segurança. Esta implementação é apenas para demonstração.
 
-      const String fcmUrl = 'https://fcm.googleapis.com/fcm/send';
+  //     const String fcmUrl = 'https://fcm.googleapis.com/fcm/send';
 
-      // Sua chave de servidor FCM (normalmente estaria segura no backend)
-      const String serverKey =
-          'SUA_CHAVE_DE_SERVIDOR_FCM'; // Substitua pela sua chave real
+  //     // Sua chave de servidor FCM (normalmente estaria segura no backend)
+  //     const String serverKey =
+  //         'SUA_CHAVE_DE_SERVIDOR_FCM'; // Substitua pela sua chave real
 
-      final Map<String, dynamic> data = {
-        'order_id': orderId,
-        'status': status,
-        ...?additionalData,
-      };
+  //     final Map<String, dynamic> data = {
+  //       'order_id': orderId,
+  //       'status': status,
+  //       ...?additionalData,
+  //     };
 
-      final Map<String, dynamic> notification = {
-        'title': title,
-        'body': body,
-        'sound': 'default',
-      };
+  //     final Map<String, dynamic> notification = {
+  //       'title': title,
+  //       'body': body,
+  //       'sound': 'default',
+  //     };
 
-      final Map<String, dynamic> request = {
-        'notification': notification,
-        'data': data,
-        'to': targetToken,
-        'priority': 'high',
-      };
+  //     final Map<String, dynamic> request = {
+  //       'notification': notification,
+  //       'data': data,
+  //       'to': targetToken,
+  //       'priority': 'high',
+  //     };
 
-      final response = await http.post(
-        Uri.parse(fcmUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'key=$serverKey',
-        },
-        body: jsonEncode(request),
-      );
+  //     final response = await http.post(
+  //       Uri.parse(fcmUrl),
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         'Authorization': 'key=$serverKey',
+  //       },
+  //       body: jsonEncode(request),
+  //     );
 
-      if (response.statusCode == 200) {
-        print('Notificação enviada com sucesso: ${response.body}');
-        return true;
-      } else {
-        print(
-            'Falha ao enviar notificação: ${response.statusCode} ${response.body}');
-        return false;
-      }
-    } catch (e) {
-      print('Erro ao enviar notificação: $e');
-      return false;
-    }
-  }
+  //     if (response.statusCode == 200) {
+  //       print('Notificação enviada com sucesso: ${response.body}');
+  //       return true;
+  //     } else {
+  //       print(
+  //           'Falha ao enviar notificação: ${response.statusCode} ${response.body}');
+  //       return false;
+  //     }
+  //   } catch (e) {
+  //     print('Erro ao enviar notificação: $e');
+  //     return false;
+  //   }
+  // }
 
   /// Notifica o usuário sobre uma alteração no status de entrega
   Future<void> notifyOrderStatusChange({
@@ -438,15 +436,15 @@ class PushNotificationService {
       // URL base do backend - ajuste conforme necessário
       String baseUrl;
       if (kIsWeb) {
-        baseUrl = 'http://localhost:8080/api/auth'; // Para web
+        baseUrl = 'http://localhost:8080/api/users'; // Para web
       } else {
-        baseUrl = 'http://10.0.2.2:8080/api/auth'; // Para Android Emulator
+        baseUrl = 'http://10.0.2.2:8080/api/users'; // Para Android Emulator
       }
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/fcm-token'),
+      final response = await http.put(
+        Uri.parse('$baseUrl/$userId/fcm-token'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'userId': userId, 'fcmToken': token}),
+        body: jsonEncode({'fcmToken': token}),
       );
       if (response.statusCode == 200) {
         print('Token FCM enviado ao backend com sucesso');

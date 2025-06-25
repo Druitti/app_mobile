@@ -26,6 +26,7 @@ public class User {
     private String firstName;
     private String lastName;
     private String phone;
+    private String fcmToken;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     
@@ -60,6 +61,9 @@ public class User {
     
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+    
+    public String getFcmToken() { return fcmToken; }
+    public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
     
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

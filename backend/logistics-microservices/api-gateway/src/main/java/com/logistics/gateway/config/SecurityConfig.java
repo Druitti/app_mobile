@@ -25,7 +25,8 @@ public class SecurityConfig {
                     "/api/gateway/v3/api-docs",
                     "/api/auth/**",
                     "/api/orders/**",
-                    "/api/tracking/**"
+                    "/api/tracking/**",
+                    "/api/users/**"
                 ).permitAll()
                 .anyExchange().authenticated()
             )

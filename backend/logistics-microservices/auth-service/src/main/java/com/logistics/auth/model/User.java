@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "users")
@@ -18,6 +19,7 @@ public class User {
     private String email;
     
     @NotBlank
+    @JsonIgnore // Prevent password from being serialized in API responses
     private String password;
     
     @Enumerated(EnumType.STRING)
@@ -26,6 +28,7 @@ public class User {
     private String firstName;
     private String lastName;
     private String phone;
+    private String fcmToken;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     
@@ -60,6 +63,9 @@ public class User {
     
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+    
+    public String getFcmToken() { return fcmToken; }
+    public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
     
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

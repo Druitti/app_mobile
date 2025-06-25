@@ -19,6 +19,24 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    _printFcmToken();
+    PushNotificationService().initialize(); // Garante inicialização
+  }
+
+  void _printFcmToken() async {
+    final token = await PushNotificationService().getFcmToken();
+    if (token != null) {
+      // Mostra o token no console para debug
+      // ignore: avoid_print
+      print('[DEBUG] FCM Token: $token');
+    } else {
+      print('[DEBUG] FCM Token não disponível');
+    }
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -38,6 +56,8 @@ class _LoginScreenState extends State<LoginScreen> {
           final prefs = await SharedPreferences.getInstance();
           final userId = prefs.getString('userId');
           if (userId != null) {
+            // Garante que o token está atualizado antes de enviar
+            await PushNotificationService().initialize();
             await PushNotificationService().sendFcmTokenToBackend(userId);
           }
           if (mounted) {
@@ -285,6 +305,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
+
+     
+                      
                     ],
                   ),
                 ),

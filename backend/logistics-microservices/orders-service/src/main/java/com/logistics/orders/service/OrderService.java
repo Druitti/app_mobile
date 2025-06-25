@@ -30,6 +30,9 @@ public class OrderService {
 
     @Autowired
     private  UserServiceClient userServiceClient;
+
+    @Autowired
+    private FirebaseNotificationService firebaseNotificationService;
     
     public Order createOrder(CreateOrderRequest request) {
         Order order = new Order();
@@ -54,6 +57,15 @@ public class OrderService {
         // Publicar evento de novo pedido
         rabbitTemplate.convertAndSend("order.exchange", "order.created", savedOrder);
         
+        // Notificação push para o cliente
+        User customer = userServiceClient.getUserById(order.getCustomerId());
+        if (customer != null && customer.getFcmToken() != null) {
+            firebaseNotificationService.sendNotification(
+                "Pedido criado!",
+                "Seu pedido #" + savedOrder.getId() + " foi criado com sucesso!",
+                customer.getFcmToken()
+            );
+        }
         return savedOrder;
     }
     
@@ -97,6 +109,18 @@ public class OrderService {
         String driverSubject = "Entrega Concluída - Pedido #" + order.getId();
         String driverBody = buildDriverEmailBody(order, customer, driver);
         emailService.sendEmail(driver.getEmail(), driverSubject, driverBody);
+    }
+
+    System.out.println("cutomer: " + customer);
+    System.out.println("driver: " + customer.getFcmToken());
+    
+    // Notificação push para o cliente
+    if (customer != null && customer.getFcmToken() != null) {
+        firebaseNotificationService.sendNotification(
+            "Status do pedido atualizado!",
+            "O status do seu pedido #" + order.getId() + " foi alterado para " + status + ".",
+            customer.getFcmToken()
+        );
     }
     
     Order updatedOrder = orderRepository.save(order);
@@ -192,6 +216,15 @@ private String buildDriverEmailBody(Order order, User customer, User driver) {
         // Publicar evento de motorista atribuído
         rabbitTemplate.convertAndSend("order.exchange", "order.driver.assigned", updatedOrder);
         
+        // Notificação push para o motorista
+        User driver = userServiceClient.getUserById(driverId);
+        if (driver != null && driver.getFcmToken() != null) {
+            firebaseNotificationService.sendNotification(
+                "Pedido aceito!",
+                "Você aceitou o pedido #" + order.getId() + ".",
+                driver.getFcmToken()
+            );
+        }
         return updatedOrder;
     }
     

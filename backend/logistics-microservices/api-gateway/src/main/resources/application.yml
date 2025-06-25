@@ -30,6 +30,10 @@ spring:
                 backoff:
                   firstBackoff: 50ms
                   maxBackoff: 500ms
+        - id: orders-service-users
+          uri: lb://orders-service
+          predicates:
+            - Path=/api/users/**
       
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
