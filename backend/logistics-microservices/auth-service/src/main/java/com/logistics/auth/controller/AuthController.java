@@ -3,6 +3,7 @@ package com.logistics.auth.controller;
 import com.logistics.auth.dto.AuthResponse;
 import com.logistics.auth.dto.LoginRequest;
 import com.logistics.auth.dto.RegisterRequest;
+import com.logistics.auth.model.User;
 import com.logistics.auth.service.AuthService;
 import com.logistics.auth.service.JwtService;
 import io.jsonwebtoken.Claims;
@@ -35,7 +36,7 @@ public class AuthController {
     private JwtService jwtService;
     
     @Operation(
-        summary = "Registrar novo usuário",
+        summary = "Registrar novo perfil",
         description = "Registra um novo usuário no sistema e retorna o token de autenticação"
     )
     @ApiResponses(value = {
@@ -86,12 +87,14 @@ public class AuthController {
                 examples = @ExampleObject(
                     name = "Exemplo de registro",
                     value = """
-                        {
-                            "name": "João Silva",
-                            "email": "joao@exemplo.com",
-                            "password": "senha123",
-                            "userType": "USER"
-                        }
+                       {
+  "firstName": "João",
+  "lastName":"Silva",
+  "phone":"31122323344",
+  "email": "joao@exemplo.com",
+  "password": "senha123",
+  "userType":"CUSTOMER"
+}
                         """
                 )
             )
@@ -221,5 +224,63 @@ public class AuthController {
             response.put("userType", claims.get("userType"));
         }
         return ResponseEntity.ok(response);
+    }
+    
+    @Operation(
+        summary = "Buscar usuário por ID",
+        description = "Retorna os dados de um usuário específico pelo seu ID"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Usuário encontrado com sucesso",
+            content = @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = User.class),
+                examples = @ExampleObject(
+                    name = "Usuário encontrado",
+                    value = """
+                        {
+                            "id": 123,
+                            "email": "joao@exemplo.com",
+                            "firstName": "João",
+                            "lastName": "Silva",
+                            "phone": "(11) 99999-9999",
+                            "userType": "USER",
+                            "createdAt": "2025-06-16T10:30:00",
+                            "updatedAt": "2025-06-16T10:30:00"
+                        }
+                        """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuário não encontrado",
+            content = @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                examples = @ExampleObject(
+                    name = "Usuário não encontrado",
+                    value = """
+                        {
+                            "error": "Usuário não encontrado",
+                            "timestamp": "2025-06-16T10:30:00"
+                        }
+                        """
+                )
+            )
+        )
+    })
+    @GetMapping("/user/{id}")
+    public ResponseEntity<User> getUserById(
+        @Parameter(
+            description = "ID do usuário",
+            required = true,
+            example = "123"
+        )
+        @PathVariable Long id
+    ) {
+        User user = authService.getUserById(id);
+        return ResponseEntity.ok(user);
     }
 }

@@ -46,6 +46,7 @@ public class AuthService {
         
         return new AuthResponse(token, refreshToken, user);
     }
+    
     public AuthResponse registerFallback(RegisterRequest request, Throwable t) {
         throw new RuntimeException("Serviço temporariamente indisponível. Tente novamente mais tarde.");
     }
@@ -65,11 +66,23 @@ public class AuthService {
         
         return new AuthResponse(token, refreshToken, user);
     }
+    
     public AuthResponse loginFallback(LoginRequest request, Throwable t) {
         throw new RuntimeException("Serviço temporariamente indisponível. Tente novamente mais tarde.");
     }
     
     public boolean validateToken(String token) {
         return jwtService.validateToken(token);
+    }
+    
+    @CircuitBreaker(name = "default", fallbackMethod = "getUserByIdFallback")
+    @Retry(name = "default")
+    public User getUserById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+    }
+    
+    public User getUserByIdFallback(Long id, Throwable t) {
+        throw new RuntimeException("Serviço temporariamente indisponível. Tente novamente mais tarde.");
     }
 }
