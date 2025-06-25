@@ -1,13 +1,15 @@
 package com.logistics.orders.service;
 
+import com.logistics.orders.client.UserServiceClient;
 import com.logistics.orders.dto.CreateOrderRequest;
 import com.logistics.orders.dto.RouteResponse;
 import com.logistics.orders.model.Order;
+import com.logistics.orders.model.User;
 import com.logistics.orders.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-
+import com.logistics.orders.service.*;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,6 +24,12 @@ public class OrderService {
     
     @Autowired
     private RabbitTemplate rabbitTemplate;
+
+    @Autowired
+    private EmailService emailService;
+
+    @Autowired
+    private  UserServiceClient userServiceClient;
     
     public Order createOrder(CreateOrderRequest request) {
         Order order = new Order();
@@ -69,20 +77,108 @@ public class OrderService {
         return orderRepository.findByStatus(status);
     }
     
-    public Order updateOrderStatus(Long orderId, Order.OrderStatus status) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+   public Order updateOrderStatus(Long orderId, Order.OrderStatus status) {
+    Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+    
+    Order.OrderStatus oldStatus = order.getStatus();
+    User customer = userServiceClient.getUserById(order.getCustomerId());
+    User driver = userServiceClient.getUserById(order.getDriverId());
+
+    order.setStatus(status);
+    
+    if(status.equals(Order.OrderStatus.DELIVERED)) {
+        // Enviar email para o cliente
+        String customerSubject = "Pedido Entregue - #" + order.getId();
+        String customerBody = buildCustomerEmailBody(order, customer, driver);
+        emailService.sendEmail(customer.getEmail(), customerSubject, customerBody);
         
-        Order.OrderStatus oldStatus = order.getStatus();
-        order.setStatus(status);
-        
-        Order updatedOrder = orderRepository.save(order);
-        
-        // Publicar evento de status atualizado
-        rabbitTemplate.convertAndSend("order.exchange", "order.status.updated", updatedOrder);
-        
-        return updatedOrder;
+        // Enviar email para o motorista
+        String driverSubject = "Entrega Concluída - Pedido #" + order.getId();
+        String driverBody = buildDriverEmailBody(order, customer, driver);
+        emailService.sendEmail(driver.getEmail(), driverSubject, driverBody);
     }
+    
+    Order updatedOrder = orderRepository.save(order);
+    
+    // Publicar evento de status atualizado
+    rabbitTemplate.convertAndSend("order.exchange", "order.status.updated", updatedOrder);
+    
+    return updatedOrder;
+}
+
+private String buildCustomerEmailBody(Order order, User customer, User driver) {
+    return String.format(
+        "Olá %s,\n\n" +
+        "Seu pedido foi entregue com sucesso!\n\n" +
+        "DETALHES DO PEDIDO:\n" +
+        "Número do Pedido: #%d\n" +
+        "Origem: %s\n" +
+        "Destino: %s\n" +
+        "Tipo de Carga: %s\n" +
+        "Descrição: %s\n" +
+        "Valor: R$ %.2f\n" +
+        "Distância: %.2f km\n" +
+        "Data de Criação: %s\n" +
+        "Data de Entrega: %s\n\n" +
+        "MOTORISTA RESPONSÁVEL:\n" +
+        "Nome: %s\n" +
+        "Email: %s\n\n" +
+        "Obrigado por escolher nossos serviços!\n\n" +
+        "Atenciosamente,\n" +
+        "Equipe de Logística",
+        
+        customer.getFirstName(),
+        order.getId(),
+        order.getOriginAddress(),
+        order.getDestinationAddress(),
+        order.getCargoType(),
+        order.getDescription(),
+        order.getPrice(),
+        order.getDistance(),
+        order.getCreatedAt().toString(),
+        order.getUpdatedAt().toString(),
+        driver.getLastName(),
+        driver.getEmail()
+    );
+}
+
+private String buildDriverEmailBody(Order order, User customer, User driver) {
+    return String.format(
+        "Olá %s,\n\n" +
+        "Entrega concluída com sucesso!\n\n" +
+        "DETALHES DO PEDIDO:\n" +
+        "Número do Pedido: #%d\n" +
+        "Origem: %s\n" +
+        "Destino: %s\n" +
+        "Tipo de Carga: %s\n" +
+        "Descrição: %s\n" +
+        "Valor: R$ %.2f\n" +
+        "Distância: %.2f km\n" +
+        "Data de Criação: %s\n" +
+        "Data de Entrega: %s\n\n" +
+        "CLIENTE:\n" +
+        "Nome: %s %s\n" +
+        "Email: %s\n\n" +
+        "Parabéns pela entrega realizada!\n\n" +
+        "Atenciosamente,\n" +
+        "Equipe de Logística",
+        
+        driver.getFirstName(),
+        order.getId(),
+        order.getOriginAddress(),
+        order.getDestinationAddress(),
+        order.getCargoType(),
+        order.getDescription(),
+        order.getPrice(),
+        order.getDistance(),
+        order.getCreatedAt().toString(),
+        order.getUpdatedAt().toString(),
+        customer.getFirstName(),
+        customer.getLastName(),
+        customer.getEmail()
+    );
+}
     
     public Order assignDriver(Long orderId, Long driverId) {
         Order order = orderRepository.findById(orderId)

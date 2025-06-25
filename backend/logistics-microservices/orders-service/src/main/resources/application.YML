@@ -21,6 +21,18 @@ spring:
     port: 5672
     username: guest
     password: guest
+  # Add mail configuration for default profile
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: pedrofr1313@gmail.com
+    password: bhyk eosi kjtc ukjq
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 eureka:
   client:
@@ -47,6 +59,16 @@ resilience4j:
         maxAttempts: 3
         waitDuration: 2s
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
 ---
 spring:
   config:
@@ -56,10 +78,22 @@ spring:
     url: jdbc:postgresql://postgres:5432/logistics_db
   rabbitmq:
     host: rabbitmq
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: pedrofr1313@gmail.com
+    password: bhyk eosi kjtc ukjq
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 eureka:
   client:
     service-url:
+
       default-zone: http://eureka-server:8761/eureka
 
 springdoc:
@@ -71,4 +105,5 @@ springdoc:
     path: /v3/api-docs
   default-produces-media-type: application/json
   default-consumes-media-type: application/json
+
 
