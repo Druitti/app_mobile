@@ -106,4 +106,8 @@ springdoc:
   default-produces-media-type: application/json
   default-consumes-media-type: application/json
 
-
+azure:
+  function:
+    email:
+      url: https://functions-1750970564996.azurewebsites.net/api/SendEmail
+      key: ${AZURE_FUNCTION_KEY:your-default-key}
